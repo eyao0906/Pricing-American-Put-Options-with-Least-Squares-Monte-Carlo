@@ -34,12 +34,25 @@ The 2001 Longstaff-Schwartz paper introduced a practical simulation approach (Le
 
 For each simulated path and time step (going backward):
 
-1. Compute immediate exercise value (here for a put: $\max(K-S_t,0)$).
-2. Restrict to in-the-money paths.
-3. Regress discounted realized future cashflows on basis functions of state (Laguerre basis in this implementation).
-4. Estimated fitted value = continuation estimate.
-5. Exercise if immediate payoff > continuation estimate; else continue.
-6. Discount cashflows backward to $t=0$.
+### 3.1 Longstaff-Schwartz (LSMC)
+
+American options are more difficult to price than European options because the holder may exercise before maturity. This early-exercise feature turns valuation into an optimal stopping problem. At each exercise date, the holder must compare the value of immediate exercise with the value of continuation, that is, the expected discounted payoff from keeping the option alive. For simple contracts, tree and PDE methods can be used, but these approaches become much less convenient in higher-dimensional or path-dependent settings. This is one of the main motivations for simulation-based pricing methods.
+
+The Longstaff-Schwartz least-squares Monte Carlo (LSMC) method combines Monte Carlo simulation with regression in order to approximate the continuation value. The key idea is that the continuation value is not directly observable during simulation, so it is estimated statistically from simulated future cash flows. For an American put, the immediate exercise value at time \(t\) is the intrinsic value
+\[
+(K - S_t)^+.
+\]
+The continuation value can be written as the conditional expectation of discounted future payoffs:
+\[
+C(S_t) = \mathbb{E}[e^{-r\Delta t}V_{t+1} \mid S_t].
+\]
+LSMC approximates this conditional expectation by regressing discounted realized future cash flows on basis functions of the current state variable.
+
+The algorithm starts by simulating a large number of stock-price paths under the risk-neutral dynamics. At maturity, the option value is simply the terminal payoff. The method then proceeds backward in time. At each earlier exercise date, the discounted future cash flows from continuation are regressed on a chosen set of basis functions, and the fitted value is interpreted as the continuation-value estimate. The holder is assumed to exercise whenever the immediate exercise payoff exceeds this estimated continuation value; otherwise, the option is continued. Repeating this backward recursion across all exercise dates produces both an estimated option value and an approximate exercise strategy.
+
+A practical feature of the Longstaff-Schwartz method is that the regression is usually restricted to in-the-money paths. The reason is that when the option is out of the money, immediate exercise is irrelevant, so those paths provide little useful information about the stopping decision. Restricting the regression to in-the-money paths often improves numerical stability and reduces noise. However, it can also create sensitivity when the number of in-the-money paths becomes small, especially in sparse regions or early in the simulation horizon.
+
+In our implementation, we apply LSMC to price an American put option under a geometric Brownian motion model. The initial stock price is based on recent AAPL data, the volatility is estimated from five years of historical log returns, and the short rate is approximated using the \(^IRX\) yield as a simple proxy. We simulate risk-neutral stock-price paths, compute intrinsic values, estimate continuation values using Laguerre basis functions on in-the-money paths, and apply backward induction to obtain both the option price and the estimated early exercise boundary.
 
 ### 3.2 Tsitsiklis-Van Roy style regression DP (extension)
 

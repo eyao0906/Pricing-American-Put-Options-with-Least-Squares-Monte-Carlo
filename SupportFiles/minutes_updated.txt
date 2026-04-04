@@ -1,0 +1,832 @@
+AMERICAN OPTION PRICING PROJECT — CONVERSATION MINUTES / HANDOFF
+Generated: 2026-04-04
+Purpose: This file is a cold-start handoff so a new AI can continue the project immediately without needing prior chat context.
+
+================================================================================
+1. PROJECT IDENTITY / COURSE CONTEXT
+================================================================================
+
+Course:
+- ACTSC 971 – Winter 2026 course project.
+
+Core course requirements from the project brief:
+- Do a detailed study of a quantitative finance topic relevant to the course.
+- A typical project should cover 1–2 papers or more.
+- The project must include BOTH:
+  1) a theoretical component, and
+  2) a computational / simulation component.
+- Students must:
+  - explain the financial context and why the problem matters,
+  - implement the algorithm/method from the paper(s),
+  - submit code with the written report,
+  - critically evaluate whether the method is appropriate for real-world use,
+  - discuss strengths, weaknesses, and practical limitations.
+- Deliverables:
+  - Written report: approximately 20–30 pages, max 1.5 line spacing, 11-point font.
+  - Oral presentation: 20–30 minutes (shorter if working individually).
+
+Rubric emphasis:
+- Written report:
+  1) Introduction
+  2) Technical content
+  3) Implementation and testing
+  4) Critical assessment
+  5) Style
+- Presentation:
+  1) Content
+  2) Organization
+  3) Visual aids
+  4) Presentation style
+  5) Responses to questions
+
+Bottom line:
+This is NOT just a coding exercise. The final deliverable needs to look like a finance + quantitative methods study with implementation evidence and critical analysis.
+
+================================================================================
+2. CHOSEN TOPIC
+================================================================================
+
+Topic:
+- American option pricing, with focus on regression-based simulation methods.
+
+Selected reference papers:
+1) Longstaff & Schwartz (2001)
+   "Valuing American Options by Simulation: A Simple Least-Squares Approach"
+   -> practical / classic Least Squares Monte Carlo (LSMC) paper.
+
+2) Tsitsiklis & Van Roy (2001)
+   "Regression Methods for Pricing Complex American-Style Options"
+   -> regression dynamic programming / approximate value iteration perspective,
+      with more theoretical emphasis on error behavior and sampling design.
+
+Current project scope actually implemented:
+- American PUT option pricing.
+- Single underlying asset.
+- GBM dynamics with constant volatility and constant risk-free rate proxy.
+- Main implemented method: Longstaff-Schwartz LSMC.
+- Comparator: simplified Tsitsiklis–Van Roy style fitted value iteration.
+
+Important reality check:
+- The current implementation is educational and compact.
+- It is NOT yet a full high-dimensional or path-dependent application like some examples in the papers.
+- It currently sits closer to a “careful vanilla replication + method comparison” than a “complex American options” study.
+- This is acceptable as a starting point, but the final report needs strong framing, stronger testing, and a good critical discussion of limitations.
+
+================================================================================
+3. CURRENT REPO / FILE STRUCTURE
+================================================================================
+
+Known repo/file structure from README and source files:
+
+data/
+- aapl_prices.csv
+- pricing_results.csv
+
+src/
+- data_loader.py
+- lsmc.py
+- tsitsiklis_vanroy.py
+- run_study.py
+
+visuals/
+- historical_price.png
+- exercise_boundary.png
+- model_comparison.png
+
+Other project materials:
+- ACTSC_971_FinalProject.docx  -> project brief
+- Rubric - Written Report.docx
+- Rubric - Presentation.docx
+- LongstaffLSMC.pdf
+- Regression Methods for Pricing Complex.pdf
+- README.md
+
+================================================================================
+4. WHAT THE CURRENT CODE DOES
+================================================================================
+
+4.1 data_loader.py
+- Downloads AAPL adjusted close prices from Yahoo Finance using yfinance.
+- Uses 5 years of daily data.
+- Estimates annualized volatility from daily log returns:
+    sigma = std(log returns) * sqrt(252)
+- Uses ^IRX as a simple risk-free proxy (13-week T-bill annualized percent).
+- If ^IRX fails, falls back to r = 0.04.
+
+4.2 lsmc.py
+- Simulates geometric Brownian motion paths.
+- Prices an American put using Longstaff-Schwartz backward induction.
+- Uses Laguerre-style polynomial basis functions.
+- Regresses discounted continuation cashflows on basis functions of normalized stock price x = S_t / K.
+- Uses in-the-money paths at each decision time.
+- Outputs:
+  - estimated price
+  - Monte Carlo standard error
+  - exercise boundary array (summary proxy from exercised path states)
+
+4.3 tsitsiklis_vanroy.py
+- Implements a simplified Tsitsiklis–Van Roy style fitted value iteration comparator.
+- Uses polynomial basis [1, x, x^2, x^3].
+- Regresses continuation value on ALL paths rather than only ITM paths.
+- Outputs:
+  - price
+  - stderr currently set to NaN
+
+4.4 run_study.py
+- Pulls market data and estimated inputs.
+- Sets:
+  - ticker = AAPL
+  - maturity = 1 year
+  - steps = 50
+  - n_paths = 100,000
+- Prices 3 American puts with strikes:
+  - 0.9 * spot
+  - 1.0 * spot
+  - 1.1 * spot
+- Also computes Black-Scholes European put values as a reference benchmark.
+- Saves:
+  - pricing_results.csv
+  - historical_price.png
+  - exercise_boundary.png
+  - model_comparison.png
+
+================================================================================
+5. CURRENT NUMERICAL STATE / OUTPUTS
+================================================================================
+
+Data snapshot from current generated files:
+- AAPL history file spans roughly:
+  - first row date: 2021-03-17
+  - last row date:  2026-03-16
+- Number of price rows: 1255
+
+Estimated market inputs used in current results:
+- Spot S0 ≈ 252.8200
+- Annualized volatility sigma ≈ 0.274248
+- Risk-free proxy r ≈ 0.03605
+
+Priced strikes:
+1) K = 227.5380 (0.9 * spot)
+2) K = 252.8200 (1.0 * spot)
+3) K = 278.1020 (1.1 * spot)
+
+Current pricing_results.csv values:
+
+Case 1: K = 227.5380
+- European put (Black-Scholes): 12.4092
+- LSMC price:                  12.7126
+- LSMC stderr:                  0.0622
+- TVR price:                   18.2578
+- abs diff (LSMC vs TVR):       5.5452
+
+Case 2: K = 252.8200
+- European put (Black-Scholes): 22.1807
+- LSMC price:                  23.5632
+- LSMC stderr:                  0.0767
+- TVR price:                   27.9856
+- abs diff (LSMC vs TVR):       4.4224
+
+Case 3: K = 278.1020
+- European put (Black-Scholes): 35.5084
+- LSMC price:                  38.3137
+- LSMC stderr:                  0.0888
+- TVR price:                   41.8495
+- abs diff (LSMC vs TVR):       3.5358
+
+Immediate interpretation:
+- LSMC > European put in all cases, which is directionally correct for American puts.
+- TVR prices are materially above LSMC for all 3 strikes.
+- This gap is likely important and should be discussed rather than hidden.
+- Possible reasons:
+  - algorithmic differences,
+  - regression architecture choices,
+  - all-path regression vs ITM regression,
+  - fitted-value-iteration bias / approximation behavior,
+  - simplifications in the TVR implementation relative to the paper.
+
+Visuals currently available:
+- historical_price.png
+- exercise_boundary.png
+- model_comparison.png
+
+================================================================================
+6. CURRENT PROGRESS STATUS
+================================================================================
+
+What is already done:
+- Topic selected and aligned with course requirements.
+- Two strong reference papers selected.
+- A working codebase exists.
+- A reproducible implementation exists for:
+  - LSMC American put pricing,
+  - TVR-style comparator,
+  - market-data-based parameter estimation,
+  - output tables and visualizations.
+- Initial empirical results have already been generated.
+
+What is NOT yet complete:
+- No polished final report yet (at least not from this handoff context).
+- No polished slide deck yet (at least not from this handoff context).
+- No deep critical assessment section yet.
+- No serious robustness / sensitivity analysis yet.
+- No benchmarking against binomial / finite difference / published values yet.
+- No proof-quality derivation writeup yet.
+- No discussion yet of why TVR differs materially from LSMC in the current implementation.
+- No extension beyond vanilla single-asset American put yet.
+
+Current maturity level of project:
+- Solid prototype / replication base.
+- Not yet presentation-ready as a final polished ACTSC 971 project.
+
+================================================================================
+7. PIVOTS / ROLES OF THE REFERENCE PAPERS
+================================================================================
+
+This section is critical for the next AI. The two papers should not be treated as redundant.
+They play DIFFERENT roles in the project.
+
+----------------------------------------
+7.1 Longstaff & Schwartz (2001) — practical pivot
+----------------------------------------
+
+Main project role:
+- The practical “anchor” paper.
+- This should be the main implemented methodology and the main narrative backbone.
+
+Core idea:
+- For American options, continuation value is unknown.
+- Simulate paths under the risk-neutral measure.
+- At each exercise date going backward:
+  - look at continuation cashflows realized later on each path,
+  - regress those discounted future cashflows on basis functions of the current state,
+  - use the fitted regression as an estimate of conditional continuation value,
+  - exercise if immediate payoff > estimated continuation value.
+
+Why it matters:
+- Avoids state-space explosion from trees / finite difference in multifactor settings.
+- Very flexible for path dependence and high-dimensional problems.
+- Easy to implement relative to more complex numerical methods.
+
+Important practical details from the paper:
+- Regression is usually done only on in-the-money paths.
+- Basis function choice matters, but the paper emphasizes that low-order bases often work surprisingly well.
+- The paper validates the method on multiple examples:
+  - vanilla American put,
+  - path-dependent exotic examples,
+  - jump-diffusion,
+  - multifactor interest-rate problems.
+
+How this maps to current project:
+- Current lsmc.py is directly in this tradition.
+- Current project should probably present LSMC as the main methodology actually “replicated”.
+
+----------------------------------------
+7.2 Tsitsiklis & Van Roy (2001) — theoretical / ADP pivot
+----------------------------------------
+
+Main project role:
+- The conceptual and theoretical extension / comparator paper.
+- Useful for positioning the project as more than just “we coded LSMC”.
+
+Core idea:
+- Frame pricing as optimal stopping / dynamic programming.
+- Approximate value functions (or Q-functions / continuation values) with parameterized regressions.
+- Analyze approximate value iteration and regression-based dynamic programming.
+- Show that state sampling matters a lot:
+  - arbitrary representative states can produce error growth that becomes very bad with horizon,
+  - representative states drawn from simulated risk-neutral trajectories keep the error bounded.
+- Also explores approximation across both state and time.
+
+Why it matters:
+- Gives theoretical support for regression-based simulation methods.
+- Explains why trajectory-based sampling is not just a coding convenience; it is structurally important.
+- Offers a more general ADP / fitted-value-iteration viewpoint than the classical LSMC recipe.
+
+How this maps to current project:
+- Current tsitsiklis_vanroy.py is a compact educational comparator, not a full theoretical reproduction.
+- The report should be careful not to over-claim full replication of all TVR theory.
+- Better framing:
+  “We implement a simplified TVR-style fitted value iteration benchmark to compare with LSMC and to illustrate how different regression-DP choices affect pricing.”
+
+----------------------------------------
+7.3 Practical project pivot between the two papers
+----------------------------------------
+
+Best combined interpretation for the final project:
+- Longstaff-Schwartz = practical regression-on-paths method that is easy to implement and widely used.
+- Tsitsiklis–Van Roy = broader dynamic programming and approximation lens explaining why regression-based simulation works and where it can go wrong.
+
+This means the project should likely be framed as:
+
+“This project studies American option pricing through two related regression-based simulation paradigms:
+(1) LSMC in the Longstaff–Schwartz sense as the main practical algorithm,
+and
+(2) a simplified Tsitsiklis–Van Roy style dynamic-programming comparator used to interpret the problem from an approximate value iteration viewpoint.”
+
+That is a strong framing because it:
+- matches the papers,
+- matches the current code,
+- gives both a practical and theoretical angle,
+- makes the project look more mature.
+
+================================================================================
+8. IMPORTANT LIMITATIONS / ISSUES TO ACKNOWLEDGE
+================================================================================
+
+These points should almost certainly appear in the report and/or be addressed by the next AI.
+
+1) Current implementation is only single-asset vanilla American PUT.
+- This is much simpler than many examples in the papers.
+- The project must explicitly say this is a controlled testbed / pedagogical replication.
+
+2) Real-world calibration is simplistic.
+- Volatility estimated from historical AAPL returns.
+- Risk-free rate from ^IRX proxy.
+- Assumes constant sigma and constant r under GBM.
+- No dividend treatment.
+- No option-market implied calibration.
+
+3) TVR implementation is simplified.
+- It is not a complete theoretical reproduction of the full paper.
+- It may exhibit approximation bias or materially different behavior due to implementation choices.
+
+4) No benchmark yet against “ground truth”.
+- For a vanilla American put under GBM, a binomial tree or finite difference benchmark is feasible.
+- This should probably be added to validate LSMC and diagnose TVR behavior.
+
+5) Regression-specification risk.
+- Basis choice may matter.
+- Degree choice may matter.
+- ITM-only regression vs all-path regression matters.
+
+6) Statistical robustness is still weak.
+- One seed per method currently.
+- No repetition study across seeds.
+- No path-count sensitivity analysis.
+- No time-step sensitivity analysis.
+- No basis-degree sensitivity analysis.
+
+7) Exercise boundary is only an empirical approximation.
+- The current boundary array is a heuristic summary from exercised path states.
+- It is useful for plotting, but it is not an exact theoretical free boundary.
+
+================================================================================
+9. MOST LIKELY NEXT STEPS (PRIORITIZED)
+================================================================================
+
+The next AI should probably help with these in roughly this order.
+
+----------------------------------------
+Priority 1 — Turn prototype into a credible course project
+----------------------------------------
+
+A) Build the final report structure.
+Recommended sections:
+1. Introduction
+2. Financial context: American options and optimal stopping
+3. Mathematical setup under risk-neutral pricing
+4. Longstaff-Schwartz method
+5. Tsitsiklis–Van Roy perspective / comparator
+6. Implementation details
+7. Numerical results
+8. Robustness / testing
+9. Critical assessment / practical limitations
+10. Conclusion
+
+B) Build the presentation structure.
+Likely slide flow:
+1. Problem and motivation
+2. Why American options are hard
+3. Longstaff-Schwartz idea
+4. Tsitsiklis–Van Roy idea
+5. Implementation setup
+6. Current results
+7. What worked / what differed
+8. Limitations
+9. Takeaways
+
+----------------------------------------
+Priority 2 — Strengthen validation and testing
+----------------------------------------
+
+The single most valuable technical upgrade is probably:
+- add a benchmark for vanilla American puts under GBM
+  - binomial tree, or
+  - finite difference if feasible.
+Then compare:
+- European BS
+- American benchmark
+- LSMC
+- TVR-style implementation
+
+This will immediately answer:
+- Is LSMC reasonable?
+- Is TVR-style implementation too high?
+- Is the issue methodology or implementation?
+
+Other strong robustness checks:
+- vary number of paths (e.g. 25k, 50k, 100k, 200k)
+- vary number of time steps (e.g. 25, 50, 100)
+- vary basis degree / basis family
+- repeat across seeds
+- maybe add confidence intervals / repeated-run summaries
+
+----------------------------------------
+Priority 3 — Improve interpretation of current results
+----------------------------------------
+
+The next AI should explicitly analyze:
+- Why LSMC sits only modestly above European put values.
+- Why TVR-style prices are much larger.
+- Whether that difference is economically plausible.
+- Whether the simplified TVR implementation should be repositioned as:
+  “illustrative comparator” rather than “co-equal pricing engine”.
+
+----------------------------------------
+Priority 4 — Improve practical realism (optional but valuable)
+----------------------------------------
+
+Possible extensions, depending on time:
+- include dividends for AAPL if appropriate,
+- use a constant user-set risk-free rate rather than dynamic web pull,
+- calibrate to implied volatility rather than historical volatility,
+- add another underlying / another maturity,
+- include jump-diffusion discussion as a “paper extension not implemented”,
+- if ambitious: implement a simple path-dependent example inspired by Longstaff-Schwartz.
+
+But do not overreach if the deadline is near.
+A very well-explained vanilla American put study with good testing and critical analysis is better than a rushed exotic extension.
+
+================================================================================
+10. RECOMMENDED POSITIONING FOR THE FINAL REPORT
+================================================================================
+
+Suggested honest positioning:
+
+“This project studies American put pricing as an optimal stopping problem and compares two regression-based simulation viewpoints. The primary implementation is the Longstaff–Schwartz least-squares Monte Carlo method, which estimates continuation values pathwise by regression on simulated risk-neutral states. To complement this practical method, we also implement a simplified Tsitsiklis–Van Roy style fitted-value-iteration benchmark to illustrate the dynamic-programming perspective on regression-based pricing. Using AAPL-based market inputs under a GBM assumption, we produce numerical prices, exercise-boundary visualizations, and method comparisons, and then critically assess the strengths and limitations of these methods for real-world use.”
+
+This wording is strong because it is:
+- accurate,
+- aligned with the code,
+- aligned with the papers,
+- aligned with the course rubric,
+- not overclaiming.
+
+================================================================================
+11. OPEN QUESTIONS / DECISIONS FOR THE NEXT AI
+================================================================================
+
+The next AI should clarify or help decide:
+
+1) How ambitious should the project be beyond vanilla put replication?
+   - safer route: stay vanilla and make validation/analysis excellent.
+   - ambitious route: add one light extension.
+
+2) How should the TVR implementation be described?
+   - likely as a simplified comparator, not as a full paper replication.
+
+3) Should a binomial benchmark be added next?
+   - probably yes; this is likely the highest-value immediate improvement.
+
+4) Should the report prioritize paper comparison or implementation testing?
+   - best answer: both, but implementation testing should be strengthened quickly.
+
+5) Should the presentation emphasize theory or practical algorithm?
+   - likely emphasize intuition + algorithm + results, not deep theorem proof.
+
+================================================================================
+12. GOOD IMMEDIATE PROMPTS FOR A NEW AI
+================================================================================
+
+Any of these prompts should work well as the next step:
+
+Prompt A:
+“Using the minutes file, help me design the full final report structure for the ACTSC 971 American option pricing project, including section objectives, what equations/results go where, and how to align with the rubric.”
+
+Prompt B:
+“Using the minutes file, help me add a binomial tree benchmark for the current American put study and compare it against the existing LSMC and TVR-style results.”
+
+Prompt C:
+“Using the minutes file, write the technical methodology section for the report, covering the American option optimal stopping setup, Longstaff-Schwartz, and the simplified Tsitsiklis–Van Roy comparator.”
+
+Prompt D:
+“Using the minutes file, help me create a 20–30 minute presentation outline with slide titles, key speaking points, and which current visuals to use.”
+
+Prompt E:
+“Using the minutes file, critically review the current code design and tell me what assumptions, simplifications, and possible implementation issues I must discuss in the final report.”
+
+================================================================================
+13. SINGLE-SENTENCE STATUS SUMMARY
+================================================================================
+
+This project is currently a solid educational prototype for American put pricing under GBM using Longstaff-Schwartz LSMC plus a simplified Tsitsiklis–Van Roy style comparator, but it still needs stronger benchmarking, robustness testing, and polished report/presentation framing to become a strong final ACTSC 971 submission.
+
+END OF HANDOFF
+
+
+================================================================================
+14. EXPLICIT EXECUTION WORKFLOWS FOR THE NEXT AGENT
+================================================================================
+
+This section turns the paper ideas into operational workflows that a new AI / agent
+can execute directly. It also records whether the CURRENT codebase aligns with each
+workflow.
+
+----------------------------------------
+14.1 Longstaff–Schwartz (LSMC) workflow
+----------------------------------------
+
+Goal:
+- Estimate the American option value by learning the continuation value from simulated
+  risk-neutral paths and then constructing an exercise rule path-by-path.
+
+Financial / mathematical object:
+- At each exercise date t_i, compare:
+  1) Immediate exercise value:
+     Z_i = Phi(S_{t_i})
+  2) Continuation value:
+     C_i(S_{t_i}) = E^Q[ exp(-r Delta t) V_{t_{i+1}} | S_{t_i} ]
+
+Core implementation logic:
+1) Choose model inputs:
+   - Spot S0
+   - Strike K
+   - Risk-free rate r
+   - Volatility sigma
+   - Maturity T
+   - Number of time steps N
+   - Number of Monte Carlo paths M
+
+2) Simulate M risk-neutral paths of the underlying state process.
+   - Current implementation uses GBM with constant r and sigma.
+
+3) Compute intrinsic values on every path and every date:
+   - For American put: intrinsic[i, m] = max(K - S[i, m], 0)
+
+4) Initialize terminal cashflows at maturity:
+   - V_T(m) = intrinsic[T, m]
+
+5) Backward induction for i = N-1, N-2, ..., 1:
+   a) Identify in-the-money (ITM) paths where intrinsic[i, m] > 0.
+   b) For those ITM paths, define regression target:
+      Y_m = exp(-r Delta t) * future_cashflow_m
+      where future_cashflow_m is the realized discounted payoff obtained by following
+      the currently known future stopping policy.
+   c) Regress Y_m on basis functions of the current state:
+      Y_m ≈ sum_j beta_{i,j} psi_j(S[i, m])
+   d) Use the fitted regression to estimate continuation:
+      C_hat_i(S[i, m]) = sum_j beta_{i,j} psi_j(S[i, m])
+   e) Exercise if:
+      intrinsic[i, m] > C_hat_i(S[i, m])
+      Otherwise continue.
+   f) Update the pathwise cashflow record accordingly:
+      - If exercised now, replace future payoff by intrinsic[i, m]
+      - If not exercised, keep the future payoff and discount one step backward
+
+6) After all dates are processed, discount realized pathwise stopping cashflows to time 0
+   and average across paths.
+
+7) Report:
+   - Estimated American option price
+   - Monte Carlo standard error
+   - Optional empirical early-exercise boundary plot
+
+Key practical notes:
+- The regression target should be based on realized future cashflows, not just a recursively
+  fitted continuation estimate, to avoid upward bias.
+- ITM-only regression is the classical LSMC choice and improves efficiency.
+- Basis choice is flexible: Laguerre, Hermite, or simple powers.
+
+How current implementation aligns:
+- YES, mostly aligned.
+- Current lsmc.py:
+  - simulates GBM paths,
+  - computes intrinsic values,
+  - initializes terminal payoffs,
+  - goes backward,
+  - uses ITM-only regression,
+  - regresses discounted future cashflows on Laguerre-style basis functions,
+  - compares intrinsic vs continuation,
+  - updates pathwise cashflows,
+  - returns price + stderr + empirical exercise boundary.
+- Therefore the current LSMC code is broadly faithful to the Longstaff–Schwartz workflow.
+
+Where it is simplified:
+- Single-asset vanilla American put only.
+- Constant volatility / constant risk-free rate GBM.
+- Basis choice is compact and fixed.
+- No convergence diagnostics or repeated-seed robustness yet.
+
+----------------------------------------
+14.2 Tsitsiklis–Van Roy (TVR-style) workflow
+----------------------------------------
+
+Goal:
+- Solve the American option pricing problem as approximate dynamic programming /
+  fitted value iteration, using regression to approximate the continuation/value function
+  backward through time.
+
+Financial / mathematical object:
+- Bellman recursion in discrete time:
+    V_i(s) = max( Phi(s), E^Q[ exp(-r Delta t) V_{i+1}(S_{t_{i+1}}) | S_{t_i}=s ] )
+- The challenge is approximating the conditional expectation term.
+
+Core implementation logic:
+1) Choose model inputs:
+   - Spot S0
+   - Strike K
+   - Risk-free rate r
+   - Volatility sigma
+   - Maturity T
+   - Number of time steps N
+   - Number of Monte Carlo paths M
+
+2) Simulate M representative risk-neutral paths / states.
+   - In the theory paper, the use of trajectory-based representative states matters for
+     controlling approximation error.
+
+3) Initialize terminal value function on simulated paths:
+   - value_next[m] = Phi(S[T, m])
+
+4) For i = N-1, N-2, ..., 0:
+   a) Observe current state s_i,m on each path.
+   b) Compute immediate exercise value:
+      intrinsic_i,m = Phi(s_i,m)
+   c) Form regression target:
+      Y_m = exp(-r Delta t) * value_next[m]
+      where value_next[m] is the already-computed optimal value at the next date.
+   d) Regress Y_m on basis functions of the current state:
+      Y_m ≈ sum_j beta_{i,j} psi_j(s_i,m)
+   e) Evaluate fitted continuation:
+      C_hat_i(s_i,m) = sum_j beta_{i,j} psi_j(s_i,m)
+   f) Compute current optimal value:
+      value_now[m] = max( intrinsic_i,m, C_hat_i(s_i,m) )
+   g) Save this result for the next backward step:
+      value_next = value_now
+
+5) At time 0, the option value is the average / fitted value implied by value_next.
+   - Since all paths share the same initial state S0, this can become nearly deterministic.
+
+Interpretation:
+- LSMC is more pathwise-stopping-rule oriented.
+- TVR-style recursion is more value-function oriented:
+  it repeatedly stores the already-solved optimal next-step value and regresses it backward.
+
+How current implementation aligns:
+- YES, partially aligned as a simplified educational comparator.
+- Current tsitsiklis_vanroy.py:
+  - simulates GBM paths,
+  - initializes terminal intrinsic value,
+  - regresses discounted next-step optimal value on polynomial basis [1, x, x^2, x^3],
+  - computes continuation,
+  - sets value_now = max(intrinsic, continuation),
+  - overwrites value_next = value_now and continues backward.
+- This matches the fitted-value-iteration flavor of TVR.
+
+Important caveat:
+- This is NOT a full reproduction of the TVR paper.
+- It is better described as a simplified TVR-style comparator / fitted value iteration benchmark.
+- Differences from the paper / richer theory include:
+  - no explicit study of projection measures,
+  - no exact analysis of representative-state distributions,
+  - no separate statistical error study,
+  - no time-state joint approximation architecture,
+  - no proof-oriented implementation of the bounded-error theory.
+
+Practical note for final report:
+- Do not overclaim: describe this as a compact TVR-style implementation used to illustrate the
+  dynamic-programming viewpoint and to compare pricing behavior against LSMC.
+
+----------------------------------------
+14.3 Benchmarking workflow with Black–Scholes
+----------------------------------------
+
+Goal:
+- Use Black–Scholes to benchmark the European counterpart of the contract and provide
+  a sanity check for the American pricing outputs.
+
+Important conceptual point:
+- Black–Scholes gives the value of the EUROPEAN option under GBM.
+- For a non-dividend-paying stock, the American put should satisfy:
+    American put >= European put
+- Therefore BS is a useful directional benchmark / lower reference, but it is NOT the true
+  benchmark for the American option itself.
+- For a vanilla American put under GBM, a binomial tree or finite-difference solver is the
+  more appropriate direct benchmark and should be added if time allows.
+
+Core implementation logic:
+1) Use the same market inputs as the Monte Carlo study:
+   - S0, K, r, sigma, T
+
+2) Compute the European put value via the Black–Scholes formula:
+   d1 = [ln(S0/K) + (r + 0.5 sigma^2) T] / [sigma sqrt(T)]
+   d2 = d1 - sigma sqrt(T)
+   P_Euro = K exp(-rT) N(-d2) - S0 N(-d1)
+
+3) For each strike / maturity case:
+   - report European BS value
+   - report LSMC American value
+   - report TVR-style value
+
+4) Compare and interpret:
+   - Check that LSMC >= BS European put
+   - Check that TVR-style >= BS European put
+   - If an American estimate is below the BS European value, something is wrong.
+   - If an American estimate is far above a proper American benchmark, investigate regression /
+     approximation bias or implementation issues.
+
+5) Use the BS comparison in the report as:
+   - a sanity check,
+   - a way to explain the value of early exercise,
+   - a lower reference line for vanilla puts.
+
+How current implementation aligns:
+- YES, aligned.
+- Current run_study.py:
+  - computes BS European put values,
+  - computes LSMC values,
+  - computes TVR-style values,
+  - stores all results in pricing_results.csv,
+  - reports absolute LSMC vs TVR differences.
+
+Important caveat for the final report:
+- The current project only benchmarks directly against the EUROPEAN Black–Scholes value.
+- This is useful but incomplete.
+- For a vanilla American put study, the next strongest benchmark should be:
+  - binomial tree American put price, or
+  - finite-difference American put price.
+- This will let the project distinguish:
+  1) whether LSMC is numerically accurate,
+  2) whether TVR-style prices are economically plausible,
+  3) whether current TVR gaps are method-driven or implementation-driven.
+
+----------------------------------------
+14.4 Direct alignment verdict for the current codebase
+----------------------------------------
+
+Short answer:
+- LSMC workflow: YES, the current code aligns well.
+- TVR workflow: YES, but only as a simplified TVR-style comparator, not a full paper replication.
+- Black–Scholes benchmark workflow: YES, for a European sanity check / lower reference only.
+
+Longer practical verdict:
+1) lsmc.py:
+   - consistent with standard Longstaff–Schwartz workflow.
+   - This should be presented as the main implementation.
+
+2) tsitsiklis_vanroy.py:
+   - consistent with a simplified fitted-value-iteration interpretation of TVR.
+   - This should be presented carefully and honestly as a compact educational comparator.
+
+3) run_study.py:
+   - correctly uses Black–Scholes as a European reference.
+   - But the overall benchmarking stack is still incomplete because there is not yet a direct
+     American benchmark such as a binomial tree.
+
+4) data_loader.py:
+   - operationally useful, but calibration assumptions are simplistic.
+   - Historical volatility + ^IRX proxy are acceptable for an educational project, but should
+     be acknowledged as simplifications.
+
+Bottom line:
+- The current implementation DOES align with the intended workflows at a prototype / course-project
+  level.
+- The largest missing piece is not the core workflow logic; it is stronger validation and clearer
+  positioning of the TVR code as simplified.
+
+----------------------------------------
+14.5 Recommended execution order for any next agent
+----------------------------------------
+
+If a new AI agent continues this project, the clearest order of execution is:
+
+Step A:
+- Keep LSMC as the main method and preserve current workflow.
+
+Step B:
+- Keep TVR-style code as a comparator, but explicitly describe it as simplified.
+
+Step C:
+- Keep Black–Scholes as the European lower reference benchmark.
+
+Step D:
+- Add a direct American benchmark (binomial or finite difference) for the vanilla put case.
+
+Step E:
+- Run robustness checks:
+  - different seeds
+  - different path counts
+  - different time steps
+  - different basis degrees / basis families
+
+Step F:
+- Use the strengthened results to write:
+  - methodology section
+  - implementation / testing section
+  - critical assessment section
+
+================================================================================
+15. SINGLE-SENTENCE IMPLEMENTATION ALIGNMENT SUMMARY
+================================================================================
+
+The current codebase is broadly aligned with the intended Longstaff–Schwartz workflow, partially aligned with a simplified TVR-style fitted-value-iteration workflow, and aligned with a Black–Scholes European benchmarking workflow, but it still needs a direct American benchmark to complete the validation stack.

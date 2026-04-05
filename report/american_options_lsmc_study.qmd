@@ -1,5 +1,5 @@
 ---
-title: "Pricing American Options with LSMC: Replication and Extension"
+title: "Pricing American Put Options with Least-Squares Monte Carlo: A Replication and Benchmarking Study"
 author: "Ethan, Ranit, Josh"
 date: today
 format:
@@ -12,262 +12,481 @@ execute:
   message: false
 ---
 
-## Financial context and relevance
+## Introduction
 
-American options can be exercised at any time up to maturity, so pricing them is an optimal stopping problem under the risk-neutral measure. For vanilla American puts, early exercise can be rational, especially when the contract is sufficiently in the money and interest rates are positive. This feature makes American-style derivatives more difficult to value than European options, whose payoff depends only on the terminal exercise date.
+American-style options are more difficult to price than European options because the holder may exercise at any time up to maturity rather than only at the terminal date. This flexibility creates additional economic value for the holder and turns pricing into an optimal stopping problem under the risk-neutral measure. Even for a plain-vanilla American put, valuation is materially more challenging than in the European case because the price depends not only on the distribution of the terminal underlying price, but also on the optimal exercise policy throughout the life of the contract.
 
-The difficulty becomes even more pronounced in settings where the payoff is path-dependent or the state space is high-dimensional. In such cases, traditional lattice and partial-differential-equation methods may become computationally expensive or infeasible. This is one reason why simulation-based pricing methods are so important in modern quantitative finance. They provide a practical framework for handling products whose exercise policy cannot be characterized in a simple closed form.
+This problem is important in quantitative finance for both theoretical and practical reasons. From a theoretical perspective, American option pricing connects no-arbitrage valuation with stochastic control and dynamic programming. From a practical perspective, early-exercise features appear widely in traded and over-the-counter products, and many realistic contracts involve state variables or payoff structures for which closed-form or lattice-based methods become cumbersome. Simulation-based methods are therefore important because they can be adapted to higher-dimensional, path-dependent, and institution-specific valuation settings.
 
-The 2001 Longstaff–Schwartz paper introduced one of the most influential simulation-based approaches to this problem. Its least-squares Monte Carlo (LSMC) method estimates continuation values through cross-sectional regression and then applies backward dynamic programming to determine the stopping decision. Because of its flexibility and relative simplicity, LSMC has become a standard reference point in both academic work and practical derivatives implementation.
+This project studies American put pricing in a controlled single-asset setting under geometric Brownian motion (GBM). The main implemented method is the Longstaff--Schwartz least-squares Monte Carlo (LSMC) algorithm, following the core logic of Longstaff and Schwartz (2001). To complement this practical method, we also implement a simplified Tsitsiklis--Van Roy (TVR)-style regression dynamic programming comparator inspired by Tsitsiklis and Van Roy (2001). The purpose of the comparison is not to claim a full reproduction of both papers, but rather to study two related regression-based approaches to approximating continuation values in an American option problem.
 
-In this project, we replicate the core logic of the Longstaff–Schwartz method and compare it with a Tsitsiklis–Van Roy style regression dynamic programming approach. Using AAPL as the underlying asset, we estimate market inputs from historical data, generate option values for several strike prices, and compare the resulting American put prices with the corresponding European Black–Scholes benchmarks. The goal is not only to reproduce the numerical workflow, but also to examine how two related regression-based pricing methods can lead to different quantitative valuations under the same market inputs.
+The implementation uses AAPL historical price data to obtain a current spot level and an annualized historical volatility estimate, together with a simple risk-free proxy based on the 13-week Treasury bill index (^IRX). The strengthened study now reports four price references for each contract: a European Black--Scholes put benchmark, a direct American binomial tree benchmark, the LSMC estimate, and the simplified TVR-style estimate. This benchmarking layer is important because, for a vanilla American put under GBM, the binomial tree provides a much more appropriate direct validation target than the European price alone.
 
-Our results show that both methods produce financially sensible pricing patterns: American put values exceed the corresponding European benchmarks, and option prices increase with the strike price. At the same time, the Tsitsiklis–Van Roy style method consistently generates higher price estimates than LSMC under the current specification. This suggests that approximation design can materially affect valuation results even in a relatively simple simulation environment.
+The main findings are straightforward and informative. First, all American put estimates exceed the corresponding European prices, as they should. Second, option values increase with the strike across all methods. Third, the LSMC estimates are close to the binomial American benchmark, with pricing gaps that are small relative to the option values and within a plausible Monte Carlo approximation range. By contrast, the simplified TVR-style estimates are materially above the binomial benchmark for all strikes. This does not imply that the TVR paper is flawed; rather, it indicates that the particular compact comparator implemented here behaves differently from the LSMC design and should be interpreted as a simplified illustrative benchmark rather than as a production-ready co-equal pricing engine.
 
-## Primary and extension papers
+Accordingly, the report frames the project honestly as a pedagogical replication and comparison study. It aims to satisfy the course objectives by combining financial motivation, mathematical formulation, paper discussion, implementation mapping, validation, and critical assessment, while remaining clear about what has and has not been implemented.
 
-### Primary paper
-- Longstaff, F. A., & Schwartz, E. S. (2001). *Valuing American Options by Simulation: A Simple Least-Squares Approach*. The Review of Financial Studies.
-- URL: <https://galton.uchicago.edu/~mykland/346W07/Longstaff.pdf>
+## Problem setup: American option pricing as an optimal stopping problem
 
-### Related/extended paper
-- Tsitsiklis, J. N., & Van Roy, B. (2001). *Regression Methods for Pricing Complex American-Style Options*. IEEE Transactions on Neural Networks.
-- URL: <https://www.mit.edu/~jnt/Papers/J086-01-bvr-options.pdf>
-
-## Methodology implemented
-###  Longstaff-Schwartz (LSMC)
-
-American options are more difficult to price than European options because the holder may exercise before maturity. This early-exercise feature turns valuation into an optimal stopping problem.
-
-The Longstaff-Schwartz least-squares Monte Carlo (LSMC) method combines Monte Carlo simulation with regression in order to approximate the continuation value. The key idea is that the continuation value is not directly observable during simulation, so it is estimated statistically from simulated future cash flows.
-
-For an American put, the immediate exercise value at time $t$ is the intrinsic value.
+Consider an American put with strike price $K$ and maturity $T$ written on an underlying asset with price process $(S_t)_{0 \le t \le T}$. Under no-arbitrage pricing, the value of the contract at time $0$ under the risk-neutral measure $\mathbb{Q}$ is
 
 $$
-(K - S_t)^+
+V_0 = \sup_{\tau \in \mathcal{T}} \mathbb{E}^{\mathbb{Q}}\left[e^{-r\tau}(K-S_\tau)^+\right],
 $$
 
-The continuation value can be written as the conditional expectation of discounted future payoffs.
+where $r$ is the risk-free rate and $\mathcal{T}$ is the set of stopping times taking values in $[0,T]$. The holder chooses an exercise time $\tau$ to maximize the expected discounted payoff. This is the essential difference from a European put, whose payoff is fixed at maturity and therefore does not require optimization over exercise time.
+
+In a discrete-time approximation with exercise dates $0=t_0<t_1<\cdots<t_N=T$, the value function satisfies the Bellman recursion
 
 $$
-C(S_t) = \mathbb{E}\left[e^{-r\Delta t} V_{t+1} \mid S_t\right]
+V_i(S_{t_i}) = \max\left\{ h(S_{t_i}),\; C_i(S_{t_i}) \right\},
 $$
 
-LSMC approximates this conditional expectation by regressing discounted realized future cash flows on basis functions of the current state variable.
+where
 
-The algorithm starts by simulating a large number of stock-price paths under the risk-neutral dynamics. At maturity, the option value is simply the terminal payoff.
+$$
+h(S_{t_i}) = (K-S_{t_i})^+
+$$
 
-A practical feature of the Longstaff-Schwartz method is that the regression is usually restricted to in-the-money paths. The reason is that when the option is out of the money, immediate exercise is irrelevant, so those paths contribute little useful information about the stopping decision.
+is the immediate exercise value and
 
-In our implementation, we apply LSMC to price an American put option under a geometric Brownian motion model. The initial stock price is based on recent AAPL data, the volatility is estimated from five years of historical log returns, and the short rate is approximated using the `^IRX` yield as a simple proxy.
+$$
+C_i(S_{t_i}) = \mathbb{E}^{\mathbb{Q}}\left[e^{-r\Delta t}V_{i+1}(S_{t_{i+1}}) \mid S_{t_i}\right]
+$$
 
-#### Practical implementation choices
+is the continuation value, with $\Delta t = T/N$. Pricing therefore amounts to comparing immediate exercise with the value of waiting. The mathematical difficulty lies in computing the conditional expectation $C_i(\cdot)$ at each exercise date.
 
-Several practical implementation choices affect the behavior of the LSMC method. First, the regression basis must be rich enough to capture the shape of the continuation value, but not so flexible that it introduces instability or overfitting. In our implementation, we use Laguerre-type basis functions, which are a standard choice in the literature because they provide a simple polynomial approximation while remaining computationally convenient.
+For a simple one-dimensional vanilla option, a lattice method can approximate this recursion directly. However, once the state space becomes richer---for example because of multiple risk factors, path dependence, stochastic volatility, or interest-rate factors---direct state-space discretization can become expensive or impractical. This motivates regression-based Monte Carlo methods that estimate continuation values from simulated paths instead of representing the value function on a dense grid.
 
-Second, the regression is restricted to in-the-money paths. This choice is motivated by the fact that the stopping decision is only relevant when immediate exercise has positive value. Excluding out-of-the-money paths reduces noise in the regression and concentrates the approximation on the region that matters most for exercise. However, this also means that the quality of the fitted continuation value depends on the number and distribution of in-the-money observations at each time step.
+## Risk-neutral model and benchmark pricing framework
 
-Third, the number of simulated paths and the number of exercise dates both influence numerical stability. More paths reduce Monte Carlo noise, while a finer time discretization produces a closer approximation to continuous-time early exercise. In practice, these choices create a trade-off between computational cost and pricing accuracy.
+The project adopts a standard Black--Scholes--Merton style GBM environment under the risk-neutral measure:
 
-#### Method limitations and approximation risk
+$$
+dS_t = rS_t\,dt + \sigma S_t\, dW_t^{\mathbb{Q}},
+$$
 
-Although LSMC is flexible and widely used, it is still an approximation method and therefore subject to several sources of error. One important source is basis risk: if the chosen regression basis does not represent the continuation value well, then the stopping rule may be distorted and the option price may be biased. Another source is simulation noise, since the regression is built on realized future cash flows rather than exact conditional expectations.
+where $\sigma$ is constant volatility and $W_t^{\mathbb{Q}}$ is a Brownian motion under $\mathbb{Q}$. This implies the usual lognormal simulation rule over one time step:
 
-The method may also become unstable in regions where the number of in-the-money paths is small. This issue is particularly relevant for early exercise dates or contracts that are far out of the money, where the regression sample may be limited. In addition, because the stopping rule is estimated recursively backward through time, small approximation errors at one step can affect later decisions and propagate through the pricing procedure. These limitations do not invalidate the method, but they help explain why implementation choices such as basis design, path count, and discretization matter so much in practice.
+$$
+S_{t+\Delta t} = S_t \exp\left(\left(r - \tfrac{1}{2}\sigma^2\right)\Delta t + \sigma \sqrt{\Delta t} Z\right), \qquad Z \sim N(0,1).
+$$
 
-###  Tsitsiklis-Van Roy style regression DP (extension)
+Within this environment, the project uses two benchmark layers.
 
+First, the European put benchmark is computed using the Black--Scholes closed form:
 
-The Tsitsiklis-Van Roy approach studies American-style option pricing from the perspective of approximate dynamic programming. Instead of focusing primarily on the stopping decision through in-the-money regression, this framework emphasizes the recursive approximation of the option value over time. The motivation is that exact dynamic programming becomes computationally infeasible when the state space is large, especially for derivatives with multiple sources of uncertainty or more complex payoff structures.
+$$
+P_{\text{Euro}} = Ke^{-rT}N(-d_2) - S_0N(-d_1),
+$$
 
-The central idea is to approximate the value function using a finite set of basis functions and then update this approximation recursively through simulated paths. In this sense, the method is closely related to fitted value iteration. At each time step, the discounted continuation value from the next step is projected onto a chosen function space, and the fitted function is used as the approximation of the current value function. This provides a dynamic-programming interpretation of regression-based pricing and highlights the connection between simulation and value-function approximation.
+where
 
-Compared with Longstaff-Schwartz, the Tsitsiklis-Van Roy style method is more global in its approximation structure. Longstaff-Schwartz typically performs regression only on in-the-money paths because those paths are directly relevant for the exercise decision. By contrast, the Tsitsiklis-Van Roy framework is often implemented using regression over all simulated paths, which makes the approximation less tied to a local stopping region and more closely aligned with recursive value-function estimation. This provides a useful comparison benchmark, although it may also make the results more sensitive to basis specification and approximation error.
+$$
+d_1 = \frac{\ln(S_0/K) + (r + \tfrac{1}{2}\sigma^2)T}{\sigma\sqrt{T}}, \qquad
+d_2 = d_1 - \sigma\sqrt{T}.
+$$
 
-An important contribution of the Tsitsiklis-Van Roy paper is its theoretical discussion of error behavior. The paper shows that approximation error can accumulate severely if representative states are chosen poorly. On the other hand, when simulated trajectories follow the underlying risk-neutral state dynamics, the approximation becomes more stable. This gives the method stronger theoretical support and helps explain why simulation-based regression methods can remain useful even when exact dynamic programming is infeasible.
+This benchmark is not the correct price of the American contract, but it is an important lower reference because an American put must be worth at least as much as the otherwise identical European put under the same model inputs.
 
-In our project, the Tsitsiklis-Van Roy style comparator is implemented as a fitted-value-iteration benchmark alongside LSMC. We regress discounted next-step continuation values on polynomial basis functions using all simulated paths, and we use the resulting fitted function as an alternative estimate of the option value. This allows us to compare a more classical exercise-focused regression method with a more global dynamic-programming-based approximation, and it helps us interpret the pricing differences observed in the numerical results.
+Second, the strengthened study computes an American put benchmark via a Cox--Ross--Rubinstein binomial tree. For a vanilla American put under GBM, the binomial tree provides a direct discrete-time dynamic-programming benchmark that is far more relevant than the European benchmark alone. It is therefore the main validation reference for assessing whether the Monte Carlo regression methods produce plausible American values.
 
-#### Relation to approximate value iteration
+## Longstaff--Schwartz (2001): paper walkthrough and intuition
 
-A useful way to understand the Tsitsiklis–Van Roy framework is to view it as a finite-horizon version of approximate value iteration. Instead of attempting to compute the exact value function at every possible state, which is generally infeasible in higher dimensions, the method projects the value function onto a lower-dimensional space generated by basis functions. The resulting fitted function is then used in place of the exact continuation value when stepping backward through time.
+Longstaff and Schwartz (2001) address the central obstacle in Monte Carlo pricing of American options: simulation is naturally well suited to estimating terminal expected payoffs, but American valuation requires conditional continuation values and an exercise policy at intermediate times. A naive forward simulation does not directly reveal whether the holder should exercise or continue at a given state.
 
-This perspective is important because it emphasizes that the method is not merely a numerical shortcut, but a structured approximation to dynamic programming. In other words, the goal is not only to estimate whether exercise is optimal at a particular point, but to approximate the value of continuation throughout the relevant state space. This makes the Tsitsiklis–Van Roy approach conceptually broader than a local regression rule tied only to the immediate stopping decision.
+The key idea of the LSMC method is to approximate the conditional continuation value by cross-sectional regression on simulated paths. Working backward from maturity, one uses realized future discounted cash flows as regression targets and fits them as functions of the current state. The fitted function serves as an estimate of the conditional expectation needed for the continuation value. The stopping decision is then based on whether the immediate exercise payoff exceeds the fitted continuation value.
 
-#### Approximation error and methodological trade-offs
+Mathematically, at an exercise date $t_i$ the continuation value is approximated by
 
-The theoretical importance of the Tsitsiklis–Van Roy paper lies partly in its treatment of approximation error. The paper shows that when value-function approximation is performed carelessly, errors can accumulate over time and may even grow rapidly with the horizon. This is especially relevant in finite-horizon American-style option pricing, where recursive approximation is repeated over many exercise dates.
+$$
+C_i(S_{t_i}) \approx \hat{C}_i(S_{t_i}) = \sum_{j=0}^{m} \beta_{i,j}\,\psi_j(S_{t_i}),
+$$
 
-At the same time, the paper argues that if representative states are generated from simulated risk-neutral trajectories, the approximation becomes more stable. This insight provides a theoretical justification for simulation-based regression methods and explains why they can remain useful despite the curse of dimensionality. In practical terms, however, the method still faces trade-offs. A more global approximation can provide smoother value estimates, but it may also become more sensitive to basis selection and model misspecification. This is one reason why comparing the Tsitsiklis–Van Roy style method with LSMC is useful in our project: the comparison highlights the difference between a more exercise-focused local regression procedure and a more global recursive value-function approximation.
+where $\{\psi_j\}$ is a chosen set of basis functions and the coefficients $\beta_{i,j}$ are estimated by least squares from the simulated sample. The fitted regression is not intended to recover the true conditional expectation exactly; rather, it provides a tractable approximation that is good enough to support the exercise decision.
 
-##Data and experimental setup
+A particularly important practical feature of Longstaff--Schwartz is the use of in-the-money (ITM) paths in the regression. If the option is out of the money at time $t_i$, immediate exercise has zero value and the stopping decision is generally uninteresting. Restricting the regression to ITM paths focuses the approximation on the region where the exercise rule matters most and can reduce noise in the continuation-value fit.
 
-Our empirical study uses Apple Inc. (AAPL) as the underlying asset. Historical price data are obtained from Yahoo Finance through the `yfinance` package. We use approximately five years of daily closing prices in order to estimate the current spot level and historical volatility. The use of a large-cap and highly traded stock makes the example easy to interpret and provides a realistic market context for illustrating American-style option pricing methods.
+The intuition of the algorithm can be summarized as follows.
 
-The current stock price is taken as the most recent closing price in the downloaded sample. Volatility is estimated from the standard deviation of daily log returns and then annualized using the square-root-of-time rule. Although this historical estimate is simple and does not reflect the full implied-volatility surface used in practice, it provides a transparent and reproducible input for a research-oriented implementation. As a proxy for the risk-free rate, we use the most recent value of the 13-week U.S. Treasury bill index (`^IRX`), scaled into decimal form. This choice is consistent with the simplified risk-neutral setting used in our implementation.
+1. Simulate risk-neutral price paths.
+2. At maturity, the option value is simply the terminal put payoff.
+3. Move backward one exercise date at a time.
+4. For paths that are currently in the money, regress discounted future realized cash flows on basis functions of the current stock price.
+5. Exercise on a path if intrinsic value exceeds the fitted continuation value; otherwise continue.
+6. Discount the resulting cash flows back to time zero and average across paths.
 
-To generate numerical option values, we assume that the underlying stock follows a geometric Brownian motion under the risk-neutral measure with constant volatility and constant interest rate. This assumption is standard in introductory Monte Carlo option-pricing exercises and makes it possible to compare the pricing behavior of LSMC and the Tsitsiklis–Van Roy style comparator in a controlled setting. At the same time, we recognize that this assumption is restrictive, since real equity dynamics may exhibit time-varying volatility, jumps, and other deviations from the Black–Scholes framework.
+Longstaff and Schwartz show that this approach is flexible, computationally practical, and adaptable to settings in which lattice methods become unwieldy. The paper is especially influential because it demonstrates that relatively simple basis functions can already produce useful approximations. For this reason, LSMC is the main practical anchor of the present project.
 
-In our experiments, the option maturity is set to one year and the time horizon is divided into 50 exercise dates. This discretization gives a reasonable Bermudan-style approximation to a one-year American option while keeping the computation manageable. We simulate 100,000 stock-price paths in order to reduce Monte Carlo noise and obtain relatively stable price estimates across methods.
+## Tsitsiklis--Van Roy (2001): paper walkthrough and intuition
 
-To examine pricing behavior across different moneyness levels, we consider three strike prices chosen around the current AAPL spot price. This allows us to compare how both methods behave for relatively lower-strike, near-the-money, and higher-strike American put contracts. Using several strikes rather than only one contract makes the comparison more informative, since the quality of continuation-value approximation may vary across payoff regions.
+Tsitsiklis and Van Roy (2001) study American-style option pricing from the broader perspective of approximate dynamic programming. Rather than focusing primarily on pathwise exercise classification, they emphasize recursive approximation of the value function itself. Their paper is therefore conceptually useful because it explains regression-based option pricing as a form of approximate value iteration.
 
-For benchmarking purposes, we also compute the corresponding European put prices under the Black–Scholes model using the same spot price, volatility, maturity, strike, and risk-free rate inputs. These European prices do not represent directly comparable contracts in terms of exercise flexibility, but they provide a useful lower reference point, since an American put should not be worth less than its European counterpart under the same model assumptions. This benchmark also serves as a basic numerical consistency check before comparing the two regression-based American pricing methods.
+In discrete time, the Bellman recursion is
 
-Overall, this experimental design is intended to balance realism, interpretability, and reproducibility. The market inputs are based on observable AAPL data, while the numerical environment remains simple enough to highlight the differences between the two regression-based pricing methods.
+$$
+V_i(s) = \max\left\{ h(s),\; \mathbb{E}^{\mathbb{Q}}\left[e^{-r\Delta t}V_{i+1}(S_{t_{i+1}}) \mid S_{t_i}=s\right] \right\}.
+$$
 
-## Python implementation and project structure
+The TVR perspective approximates the continuation term by projecting it onto a finite-dimensional function class. In a fitted-value-iteration style implementation,
 
-### Data preparation
+$$
+\hat{C}_i(s) = \sum_{j=0}^{m}\alpha_{i,j}\,\phi_j(s),
+$$
 
-The file `data_loader.py` is responsible for retrieving and preprocessing the market inputs used in the pricing experiment. It downloads historical AAPL price data from Yahoo Finance, computes daily log returns, estimates annualized volatility, and retrieves a simple proxy for the risk-free rate from the `^IRX` series. These quantities are then used as the market inputs for the pricing exercise. In this sense, the role of the data-preparation stage is to convert observable market information into the simplified model inputs required by the numerical framework.
+where the coefficients are obtained by regressing discounted next-step values on basis functions of the current state. The current value estimate is then set to
 
-### LSMC implementation
+$$
+\hat{V}_i(s) = \max\{h(s), \hat{C}_i(s)\}.
+$$
 
-The file `lsmc.py` implements the Longstaff–Schwartz least-squares Monte Carlo method. Its main tasks are to simulate geometric Brownian motion stock-price paths, compute the intrinsic values of the American put along each path, estimate continuation values through regression on basis functions, and apply backward induction in order to determine the stopping rule and final option value. The implementation focuses on in-the-money paths when estimating continuation values, which is consistent with the standard intuition of the Longstaff–Schwartz algorithm. In addition to the final price estimate, the script also produces an estimated early-exercise boundary, which is later used for visualization and interpretation.
+Conceptually, this differs from the Longstaff--Schwartz procedure in two main ways.
 
-### Tsitsiklis-Van Roy comparator
+First, the TVR viewpoint is more explicitly value-function oriented. It aims to approximate the Bellman recursion over the state space rather than focusing mainly on the local exercise decision. Second, the implementation often uses a broader regression sample rather than restricting attention only to ITM states. This makes the approximation more global, but potentially more sensitive to basis choice and projection error.
 
-The file `tsitsiklis_vanroy.py` implements the comparator based on the Tsitsiklis–Van Roy style regression dynamic programming approach. Rather than focusing only on the local exercise decision for in-the-money paths, this script approximates discounted next-step continuation values using regression across all simulated paths. This gives the implementation a more global value-function approximation flavor and makes it conceptually closer to fitted value iteration. As a result, the project is able to compare two related but distinct regression-based approaches to American option pricing under the same market and simulation inputs.
+The theoretical contribution of Tsitsiklis and Van Roy is also important. The paper highlights that regression-based dynamic programming can perform poorly if representative states are chosen badly, but becomes more stable when the approximation uses states generated by simulated risk-neutral trajectories. In this sense, simulation is not merely a computational convenience; it is closely linked to the approximation architecture itself.
 
-### Main workflow and outputs
+In the present project, however, the comparator is intentionally modest. The file `tsitsiklis_vanroy.py` does not attempt to reproduce the full theory, proofs, or full range of examples in Tsitsiklis and Van Roy (2001). Instead, it implements a simplified TVR-style fitted-value-iteration benchmark using polynomial basis functions and all-path regression. This is still useful pedagogically because it shows how a different regression-DP design can lead to materially different prices under the same underlying model inputs.
 
-The script `run_study.py` serves as the main driver of the entire project. It combines the market inputs, contract specifications, simulation settings, and pricing methods into a single workflow. More specifically, it loads the processed market data, defines the strike prices and maturity, computes the Black–Scholes European put benchmark, runs both the LSMC and Tsitsiklis–Van Roy style pricing procedures, and stores the numerical outputs for later analysis in the report.
+## Conceptual comparison of the two papers
 
-The project also generates a small collection of output files that support the empirical discussion. The file `pricing_results.csv` stores the pricing comparison table, including the European benchmark, the LSMC estimate, and the Tsitsiklis–Van Roy estimate for each strike. The `visuals` folder contains the historical AAPL price plot, the estimated LSMC exercise-boundary plot, and the bar chart comparing American put prices across methods. Together, these outputs provide the quantitative evidence used in the Results section.
+The two papers are related, but they should not be treated as interchangeable.
 
-### Workflow of the implementation
+Longstaff and Schwartz (2001) solve the American option problem by constructing an estimated continuation rule from simulated future cash flows. Their contribution is practical, algorithmic, and directly implementable. The method is especially attractive because it scales beyond the low-dimensional settings in which trees and finite-difference methods work comfortably.
 
-The implementation follows a simple end-to-end workflow. First, market data are downloaded and converted into the model inputs required for simulation, namely the current stock price, annualized volatility, and a proxy for the risk-free rate. Second, the project defines the option contracts and simulation parameters, including maturity, number of exercise dates, number of Monte Carlo paths, and the selected strike prices. Third, the code applies the two American option pricing methods together with the Black–Scholes European benchmark. Finally, the numerical results are saved to a pricing table and summarized visually through the generated plots. This workflow keeps the project easy to reproduce and allows the report to connect the market-input stage, the computational stage, and the interpretation stage in a transparent way.
+Tsitsiklis and Van Roy (2001) instead frame the problem as approximate dynamic programming. Their contribution is conceptually broader and more theoretical. The paper helps explain why regression-on-paths methods can work, what role representative states play, and how approximation error can propagate through backward recursion.
 
-### Connection between theory and implementation
+For this project, Longstaff--Schwartz is the main practical anchor because the implemented `lsmc.py` is directly in that tradition and because LSMC is the more natural method to benchmark against a binomial American put price in a vanilla GBM setting. The TVR component is helpful not because it dominates LSMC empirically here, but because it provides a second regression-DP lens and makes the report more intellectually complete. The appropriate interpretation is therefore:
 
-An important feature of the project is that the code structure closely mirrors the methodological structure described earlier in the report. The market-input stage corresponds to the calibration of the simplified geometric Brownian motion environment. The path-simulation and regression components in `lsmc.py` implement the continuation-value approximation emphasized in the Longstaff–Schwartz method. Similarly, the regression update in `tsitsiklis_vanroy.py` reflects the approximate dynamic-programming interpretation of the Tsitsiklis–Van Roy framework. In this sense, the implementation is not merely a set of scripts that produce numerical outputs, but a direct computational translation of the two pricing methodologies studied in the project.
+- **LSMC:** main implementation and main pricing methodology;
+- **TVR-style comparator:** simplified illustrative extension showing an approximate dynamic-programming viewpoint.
 
-### Scope of the implementation
+## Implementation and code design
 
-Although the implementation is sufficient for a course project and for illustrating the main numerical ideas, it remains intentionally simplified. The underlying dynamics are restricted to geometric Brownian motion with constant volatility and constant interest rate, and the pricing exercise focuses on a single underlying asset together with a small set of strike prices. In addition, the implementation emphasizes clarity and modularity rather than computational optimization, calibration to option-market implied volatilities, or industrial-scale deployment. These simplifications are acceptable for a pedagogical replication study, but they also define the boundary between the present project and a full production-level pricing framework.
+This section maps the theory directly to the actual project files. The report is intentionally explicit here because the course brief requires not only discussion of the papers, but also evidence that the implemented code corresponds meaningfully to the theoretical methods.
 
-Overall, the implementation is designed as a research-oriented replication rather than production pricing software. The emphasis is on clarity, comparability, and reproducibility rather than industrial-scale calibration or deployment. Even so, the modular structure of the code makes it straightforward to extend the project to richer dynamics, alternative basis functions, or additional pricing experiments.
+### Market data and model inputs: `data_loader.py`
+
+The file `data_loader.py` retrieves and preprocesses the market inputs used in the study. It downloads five years of AAPL closing prices using `yfinance`, computes daily log returns, annualizes the standard deviation of those returns to obtain a historical volatility estimate,
+
+$$
+\hat{\sigma} = \text{sd}(\log S_t - \log S_{t-1})\sqrt{252},
+$$
+
+and takes the most recent close as the spot price $S_0$. The script also downloads the most recent `^IRX` value and rescales it to a decimal annual rate to obtain a simple risk-free proxy.
+
+This mapping is important for interpretation. The project is not calibrated to market-implied volatility surfaces or dividend-adjusted option quotes; instead, it uses a transparent historical-input setup suitable for a controlled course project. That choice improves reproducibility but also limits realism.
+
+### Longstaff--Schwartz implementation: `lsmc.py`
+
+The file `lsmc.py` implements the main LSMC pricing engine. Its structure mirrors the Longstaff--Schwartz workflow closely.
+
+1. **Path simulation.** The function `simulate_gbm_paths` generates risk-neutral GBM paths for the underlying asset over the chosen number of time steps.
+2. **Intrinsic value matrix.** The code computes the put intrinsic value $\max(K-S_t,0)$ at each date and on each path.
+3. **Backward induction.** Starting from maturity, the algorithm moves backward through the exercise dates.
+4. **ITM-only regression.** At each time step, only currently in-the-money paths are used for the continuation-value regression.
+5. **Basis functions.** The regression uses Laguerre-style basis functions of the normalized state variable $x=S_t/K$, implemented in `laguerre_basis`.
+6. **Exercise rule.** The code compares current intrinsic value with fitted continuation value and either exercises immediately or continues.
+7. **Outputs.** The function returns an estimated price, a Monte Carlo standard error, and an empirical exercise-boundary array.
+
+The use of Laguerre-type functions is consistent with standard LSMC practice because low-order orthogonal-polynomial-style bases can capture the broad shape of the continuation function without requiring a large number of parameters. At the same time, the basis remains a modeling choice, not a theorem, and should be viewed as part of the approximation design.
+
+The reported exercise boundary is also worth interpreting carefully. The code stores a boundary summary from states on which early exercise occurs at each time step. This is useful for visualization and intuition, but it is not an exact analytical free boundary.
+
+### Simplified TVR-style comparator: `tsitsiklis_vanroy.py`
+
+The file `tsitsiklis_vanroy.py` implements a compact fitted-value-iteration style comparator inspired by Tsitsiklis and Van Roy (2001). The design differs from `lsmc.py` in several important respects.
+
+1. It uses the same GBM simulation engine to generate risk-neutral paths.
+2. It initializes terminal option values at maturity.
+3. It moves backward through time by regressing discounted next-step value estimates on basis functions of the current stock price.
+4. It uses **all paths** rather than only ITM paths in the regression.
+5. It employs a simple polynomial basis $[1, x, x^2, x^3]$ with $x=S_t/K$.
+6. It updates the current value estimate via
+   $$
+   V_i \approx \max\{h_i, \hat{C}_i\}.
+   $$
+
+This implementation is best described as a **TVR-style** comparator rather than a full implementation of the paper. It captures the fitted-value-iteration flavor of approximate dynamic programming, but it does not reproduce the full theoretical apparatus or all methodological variants discussed by Tsitsiklis and Van Roy.
+
+### Main study script: `run_study0.py`
+
+The file `run_study0.py` is the main execution script for the strengthened benchmarked study and should be treated as the central driver of the project workflow. It performs the following tasks.
+
+1. Loads market inputs from `data_loader.py`.
+2. Defines the experiment: AAPL underlying, one-year maturity, 50 time steps, and 100,000 Monte Carlo paths.
+3. Sets three strikes around spot: $0.9S_0$, $1.0S_0$, and $1.1S_0$.
+4. Computes the European Black--Scholes put benchmark.
+5. Computes the American put binomial tree benchmark.
+6. Runs the LSMC and TVR-style pricing procedures.
+7. Stores the full pricing table in `data/pricing_results.csv`.
+8. Generates the three report figures in `visuals/`:
+   - `historical_price.png`
+   - `exercise_boundary.png`
+   - `model_comparison.png`
+
+This script is especially important because it integrates the theoretical and computational parts of the project into one reproducible pipeline. It also corrects a weakness in the earlier project state by including a direct American benchmark rather than relying only on the European reference price.
+
+## Data and experimental setup
+
+The empirical study uses Apple Inc. (AAPL) as the underlying asset. This is a natural pedagogical choice because AAPL is liquid, familiar, and has a long record of easily accessible historical data. The project uses approximately five years of daily closing prices to estimate the current spot level and historical volatility.
+
+The pricing environment is intentionally simple and controlled:
+
+- underlying model: geometric Brownian motion under the risk-neutral measure;
+- maturity: one year;
+- time discretization: 50 exercise dates;
+- Monte Carlo sample size: 100,000 paths;
+- strike set: three values centered around current spot, namely $0.9S_0$, $1.0S_0$, and $1.1S_0$.
+
+Under the current generated outputs in `pricing_results.csv`, the market inputs are approximately:
+
+- spot price $S_0 \approx 255.92$;
+- annualized volatility $\sigma \approx 0.2735$;
+- risk-free proxy $r \approx 0.0361$.
+
+These assumptions should be understood as part of a controlled classroom experiment rather than a production calibration. In particular:
+
+- volatility is historical rather than implied;
+- the risk-free rate uses a simple `^IRX` proxy;
+- the model assumes constant $r$ and constant $\sigma$;
+- dividend effects are not modeled explicitly.
+
+Those choices are acceptable for a pedagogical replication study because they keep the computational environment transparent and reproducible. They also create a clean setting in which to compare continuation-value approximations. However, they must be acknowledged when discussing practical relevance.
 
 ## Results and discussion
-### Pricing comparison
-Table 1 summarizes the pricing outputs across the three strike prices under the current market inputs.
+
+### Pricing comparison table
+
+The core pricing outputs are shown below.
 
 ```{python}
 import pandas as pd
 results = pd.read_csv('../data/pricing_results.csv')
-results
+results[['strike','maturity_years','european_put_bs','american_put_binomial','lsmc_price','tvr_price','lsmc_minus_binomial','tvr_minus_binomial']].round(4)
 ```
 
-```{python}
-(results[['strike','european_put_bs','lsmc_price','tvr_price']])
-```
+The pricing table supports several important conclusions.
 
-Table 1 reports the core pricing results for three American put contracts with strike prices set around the current AAPL spot level. For each strike, we compare the Black–Scholes European put benchmark with the American put prices generated by the Longstaff–Schwartz least-squares Monte Carlo (LSMC) method and the Tsitsiklis–Van Roy style regression dynamic programming comparator.
+First, for every strike, the American put values exceed the corresponding European Black--Scholes prices. This is the expected no-arbitrage ordering because the American holder has all the rights of the European holder plus the ability to exercise early. In the current outputs, the European put prices are approximately 12.50, 23.04, and 37.16 across the three strikes, while the binomial American prices are approximately 12.98, 23.87, and 38.97.
 
-A first and important consistency check is that the American put prices are always at least as large as the corresponding European put prices. This condition holds for all three strike levels in our experiment. For the lowest strike, the European put benchmark is approximately 12.22, while the LSMC and Tsitsiklis–Van Roy style estimates are about 12.45 and 17.88, respectively. For the at-the-money strike, the corresponding prices are approximately 22.49, 23.12, and 27.45. For the highest strike, the European, LSMC, and Tsitsiklis–Van Roy style prices are about 36.20, 37.62, and 41.10. These results are consistent with the theoretical fact that an American put should not be worth less than its European counterpart, since the American contract includes the additional right of early exercise.
+Second, option values increase with the strike across all methods. This is financially intuitive for put options because a higher strike increases the intrinsic value available upon exercise. The monotonicity is visible in the European benchmark, the binomial benchmark, the LSMC estimate, and the TVR-style estimate, which is a basic but important internal consistency check.
 
-A second clear pattern is that option values increase with the strike price across all methods. This is expected for put options, because a higher strike price increases the potential exercise payoff. The same monotonic pattern appears in the European benchmark, the LSMC estimates, and the Tsitsiklis–Van Roy style estimates, which supports the internal consistency of the numerical implementation.
+Third, and most importantly for validation, the LSMC estimates are close to the direct American binomial benchmark. The differences `lsmc_minus_binomial` are approximately -0.1733, -0.0927, and -0.2807 across the three strikes. These are modest deviations relative to option values in the 13 to 39 range, and they are consistent with the fact that LSMC is a Monte Carlo approximation using finite paths, finite basis functions, and discrete exercise dates. The current standard errors reported by `lsmc.py` are also small, which suggests that the implementation is numerically stable at the chosen path count.
 
-The most interesting comparison concerns the difference between the two American pricing methods. Across all three strike levels, the Tsitsiklis–Van Roy style method produces higher price estimates than LSMC. The absolute difference is approximately 5.43 for the lowest strike, 4.33 for the at-the-money strike, and 3.49 for the highest strike. This suggests that the two regression-based approaches, while qualitatively consistent, differ meaningfully in their quantitative treatment of continuation values. In the current implementation, LSMC appears to produce more conservative American put estimates, while the Tsitsiklis–Van Roy style method generates a larger estimated early-exercise premium.
+By contrast, the TVR-style estimates are materially above the binomial benchmark in all three cases. The gaps `tvr_minus_binomial` are approximately 5.41, 4.36, and 3.30. This is far too large to interpret as minor Monte Carlo noise. Under the current simplified specification, the TVR-style comparator appears to be generating a substantially larger continuation-value-driven price level than either the direct binomial benchmark or the LSMC implementation.
 
-One possible interpretation is that the two methods approximate the continuation region in different ways. Longstaff–Schwartz performs regression mainly on in-the-money paths and is therefore more closely tied to the local stopping decision. By contrast, the Tsitsiklis–Van Roy style comparator uses a more global recursive value-function approximation. Under the present specification, this global structure may lead to systematically higher continuation-value estimates and, therefore, higher American put prices. Although this does not imply that one method is always superior, it demonstrates that regression design and approximation architecture can materially affect valuation results even when market inputs are held fixed.
+This result should be interpreted carefully. It would be inappropriate to conclude that TVR is therefore a better method, or a worse method, in general. The correct conclusion is narrower: **the simplified TVR-style implementation used in this project produces materially higher prices than the direct American benchmark for this vanilla put test case.** That finding suggests that regression architecture, all-path fitting, basis choice, and simplified implementation details can materially affect pricing outcomes.
 
-Overall, the pricing comparison shows that the implementation behaves in a financially sensible way and that the two American-option pricing methods agree on broad qualitative patterns. At the same time, the nontrivial price gap between LSMC and the Tsitsiklis–Van Roy style method highlights the practical importance of approximation choice in simulation-based American option pricing.
+### Early-exercise premium interpretation
 
-### Exercise-boundary analysis
-Figure 1 shows the estimated LSMC early-exercise boundary for the three strike levels.
-![](../visuals/exercise_boundary.png)
+Because the project reports both European and American reference prices, it is possible to interpret the early-exercise premium directly. The binomial benchmark premiums are approximately 0.48, 0.83, and 1.81 across the three strikes. This pattern is economically sensible: the value of early exercise is positive for the American put and becomes larger as the strike moves further above the current stock price.
 
-In addition to producing option-price estimates, the LSMC implementation generates an approximate early-exercise boundary for the American put. This boundary provides a useful visual summary of the stopping rule implied by the regression-based pricing method. At each exercise date, it indicates the stock-price region in which immediate exercise becomes more attractive than continuation.
+The LSMC early-exercise premia are similar in direction and magnitude to the binomial values, which further supports the view that the LSMC implementation is behaving reasonably in this setting. The TVR-style premia, however, are much larger. Numerically, this means the simplified TVR-style recursion is assigning substantially more value to the flexibility embedded in the American exercise right than the direct benchmark does. In a report of this kind, that gap is not something to conceal; it is exactly the sort of finding that should motivate critical assessment.
 
-The estimated boundary exhibits a pattern that is consistent with the economic intuition of American put exercise. In general, the boundary tends to vary over time in a way that reflects the changing trade-off between exercising early and preserving future optionality. When the stock price is sufficiently low relative to the strike, immediate exercise becomes more attractive because the put is already deeply in the money. By contrast, when the stock price remains closer to or above the strike, the holder is more likely to preserve the contract and retain the possibility of even greater future payoff.
+### Exercise boundary analysis
 
-A second important observation is that the exercise boundary differs across strike levels. Higher-strike contracts tend to have higher exercise boundaries, which is natural because a put with a larger strike becomes valuable at a higher stock-price level. In other words, when the strike is larger, the range of stock prices for which early exercise may be optimal also shifts upward. This is consistent with the interpretation that higher-strike American puts are more likely to enter the relevant stopping region.
+Figure 1 plots the empirical exercise boundary produced by the LSMC implementation.
 
-At the same time, the boundary generated by LSMC should be interpreted as an estimated numerical object rather than an exact analytical exercise frontier. It depends on the simulated sample paths, the regression basis, and the number of exercise dates used in the discretized problem. For this reason, the boundary is best understood as a visual representation of the algorithm’s implied stopping behavior under the current specification, rather than as a precise structural feature of the true continuous-time problem.
+![Estimated LSMC exercise boundary.](../visuals/exercise_boundary.png)
 
-Even with this limitation, the exercise-boundary figure is valuable because it shows that the LSMC implementation does more than simply produce a single option price. It also recovers an approximate exercise policy, which is one of the most important practical features of simulation-based pricing methods for American-style derivatives.
+The figure provides intuition about the stopping rule implied by the LSMC algorithm. For an American put, early exercise becomes more attractive when the underlying stock price is sufficiently low relative to the strike, because the contract is already deep in the money and the holder may prefer to realize intrinsic value immediately rather than preserve time value.
 
-### Visual interpretation of method differences
+Several qualitative features are consistent with financial intuition.
 
-Figure 2 compares the American put prices generated by LSMC and the Tsitsiklis–Van Roy style method across the three strike levels.
+- The boundary differs by strike: higher-strike puts tend to admit early exercise at higher stock-price levels.
+- The boundary is time-dependent, reflecting the fact that the value of waiting changes as maturity approaches.
+- The figure captures an estimated stopping region rather than a closed-form free boundary.
 
-![](../visuals/model_comparison.png)
+The plot should not be overinterpreted as an exact structural object. It is derived from a finite simulated sample and from the specific regression basis used in the algorithm. Even so, it is useful because it shows that the LSMC procedure yields not only a price estimate, but also an interpretable approximate exercise policy.
 
-The method-comparison chart provides a visual summary of the American put prices generated by the LSMC and Tsitsiklis–Van Roy style methods across the three strike levels. The figure confirms the same pattern already observed in the pricing table: for each strike, the Tsitsiklis–Van Roy style method produces a higher price estimate than LSMC. This makes the method difference easier to see at a glance and reinforces the conclusion that the two regression-based pricing procedures are qualitatively similar but quantitatively distinct.
+### Model-comparison figure
 
-The bar chart also shows that the difference between the two methods is not uniform across contracts. The gap is largest for the lowest strike and becomes smaller as the strike increases. Although the experiment is limited to one underlying asset and one maturity, this pattern suggests that approximation differences may depend on the location of the contract relative to the stopping region. In particular, when the option is less deeply in the money, the continuation-value approximation may be more sensitive to the regression architecture used by the pricing method.
+Figure 2 compares the four pricing layers: European Black--Scholes, American binomial, LSMC, and TVR-style.
 
-The visual comparison is useful because it highlights the economic interpretation of the numerical results. LSMC appears to produce more conservative American put values, while the Tsitsiklis–Van Roy style comparator implies a larger early-exercise premium under the same market inputs. This does not by itself prove that one method is universally more accurate than the other, but it shows that methodological design choices can materially affect price estimates even in a relatively simple simulation environment.
+![Comparison of benchmark and regression-based prices.](../visuals/model_comparison.png)
 
-![](../visuals/historical_price.png)
+The main message of the figure is clearer than in a two-method comparison alone. The American binomial and LSMC bars lie close together across strikes, while the TVR-style bars sit noticeably higher. This visual evidence supports the interpretation from the pricing table:
 
-The historical AAPL price plot provides additional context for the experiment. It shows that the underlying asset has experienced substantial variation over the sample period, which helps justify the use of a simulation-based pricing framework rather than relying only on a static single-point description of the market environment. At the same time, the historical-price plot should be interpreted only as background context: in the pricing model itself, the historical sample is summarized through the current spot price and the estimated historical volatility rather than being used directly as future price paths.
+- the European benchmark is the lowest, as expected;
+- the binomial benchmark captures the American early-exercise value directly;
+- the LSMC method tracks that benchmark reasonably well;
+- the simplified TVR-style comparator appears to overstate the American value in this particular implementation.
 
-Taken together, the table and figures show that the project results are internally coherent. The tabulated outputs establish the numerical ordering of prices, the exercise-boundary figure provides intuition about the stopping behavior implied by LSMC, and the method-comparison chart illustrates the systematic valuation gap between the two regression-based approaches.
+This strengthened figure is important because it changes the discussion from a vague comparison of two regression methods to a more disciplined validation exercise. Without the binomial benchmark, one could only say that TVR produced higher values than LSMC. With the benchmark, one can say something much more useful: LSMC is relatively well aligned with a direct American benchmark, whereas the simplified TVR-style method is not.
 
-## Critical evaluation
+### Historical price context
 
-### Strengths of LSMC / regression simulation methods
+Figure 3 shows the historical AAPL price path used to estimate the current spot and historical volatility.
 
-- Scales better than trees/PDE in high dimensions.
-- Flexible: supports path-dependent state variables and custom payoff logic.
-- Natural fit for enterprise Monte Carlo risk stacks.
-- Easy to parallelize.
+![Historical AAPL close price used for model inputs.](../visuals/historical_price.png)
 
-### Weaknesses / limitations
+This figure provides context for the data source but should not be misunderstood. The project does not use the historical time series itself as future simulated price paths. Instead, the historical data are summarized into a current spot level and a historical volatility estimate, which then feed the GBM pricing model. The figure is therefore descriptive background rather than evidence of forecast performance.
 
-- **Basis risk / approximation error**: poor basis choice biases continuation estimates.
-- **Look-ahead and finite-sample bias** risk if implementation is careless.
-- **Exercise boundary instability** in sparse ITM regions.
-- **Model risk**: under realistic markets, GBM with constant volatility/rates is often insufficient.
-- **Tail events** underrepresented in standard MC unless variance reduction / stress design is used.
+## Implementation and testing / validation
 
-### Does this address real-world needs appropriately?
+Implementation and testing are a major part of the course rubric, and this section is where the strengthened study is most different from a simple prototype summary.
 
-Partly yes. LSMC is practically valuable and remains widely used. But institutions using it naively (simple GBM, fixed polynomial basis, weak diagnostics) may systematically misprice early-exercise features and risk exposures, especially in stressed regimes or products with complex state dependence.
+### Why the European Black--Scholes price is only a partial benchmark
 
-### Where institutions can run into trouble
+The European Black--Scholes put is useful as a sanity check because an American put should not be worth less than its European counterpart under the same model inputs. If a purported American price fell below the Black--Scholes European price, that would immediately indicate a serious error.
 
-- Underfitting continuation values for deep OTM/ITM states.
-- Overfitting with high-order basis and limited effective sample.
-- Unstable Greeks due to regression noise.
-- Governance gaps: insufficient backtesting against benchmarks and market quotes.
+However, the European price is only a **lower reference**, not a direct validation target. It prices a different contract, one without early exercise. For a vanilla American put under GBM, the proper direct benchmark is an American pricing method such as a binomial tree or finite-difference solver. Relying only on the Black--Scholes benchmark would therefore be insufficient for a serious testing discussion.
 
-### Suggestions for improvement
+### Why the binomial tree is the appropriate direct benchmark here
 
-1. **Richer dynamics**: local/stochastic volatility, stochastic rates, jumps when needed.
-2. **Regularized / adaptive regression**: orthogonalized basis, cross-validation, or modern ML regressors with strong controls.
-3. **Variance reduction**: antithetic/control variates, quasi-MC.
-4. **Dual bounds** (e.g., Andersen-Broadie style) to quantify pricing bias intervals.
-5. **Robust model validation**: benchmark against lattice/PDE in low dimensions, scenario stress testing, and out-of-sample stability checks.
+For a single-asset vanilla American put under GBM, the Cox--Ross--Rubinstein binomial tree is a natural validation tool. It directly implements discrete-time backward induction with early exercise and is well suited to the same one-dimensional problem studied here. In that sense, the tree is not merely another rough comparator; it is the closest available benchmark in the current project structure to a direct American solution method.
 
-## Reproducibility
+That is exactly why adding the binomial benchmark materially strengthens the report. It allows the project to evaluate whether the regression-based Monte Carlo methods are reproducing plausible American values rather than merely satisfying trivial monotonicity checks.
 
+### Does LSMC align with the binomial benchmark?
 
-This project is designed so that the main numerical results and report outputs can be reproduced from the project root directory with a small number of commands. The implementation requires a standard Python environment together with the packages `yfinance`, `pandas`, `numpy`, and `matplotlib`. In addition, Quarto is required in order to render the final report from the `.qmd` source file.
+Yes, reasonably well. Across the three strikes, the LSMC prices differ from the binomial benchmark by roughly -0.17, -0.09, and -0.28. These are modest discrepancies and are economically plausible in a simulation-based approximation. They suggest that the LSMC implementation is correctly capturing the broad magnitude of the American early-exercise premium in this controlled setting.
 
-From the project root, the numerical experiment can be reproduced by first installing the required Python packages and then running the main study script:
+This is an important result because it supports the credibility of `lsmc.py` as the main implementation. The method is not exact, and the project does not claim otherwise, but its output is consistent with a direct American benchmark to a degree that is appropriate for a course project.
+
+### What does the TVR-style deviation suggest?
+
+The TVR-style prices are materially above the binomial benchmark for all strikes, by roughly 3.3 to 5.4. In a testing section, this should not be described vaguely as a “difference.” It should be interpreted as evidence that the current simplified fitted-value-iteration comparator is not as well aligned with the direct benchmark as LSMC is.
+
+Several plausible explanations are consistent with the code design.
+
+1. **All-path regression versus ITM-only regression.** The TVR-style code fits on all simulated paths, which may blur the approximation in the region that matters most for the exercise decision.
+2. **Basis specification.** The polynomial basis $[1,x,x^2,x^3]$ may approximate the continuation function less effectively than the Laguerre-style basis used in LSMC for this particular setup.
+3. **Recursive value approximation sensitivity.** Fitted-value-iteration style methods can propagate approximation error backward through time. A small systematic overvaluation in continuation estimates can accumulate into a materially higher current price.
+4. **Simplified implementation.** The comparator is intentionally compact and does not reproduce the full structure or theoretical safeguards of the TVR paper.
+
+The testing takeaway is therefore not that “TVR fails” in a universal sense, but that this **simplified TVR-style implementation** behaves aggressively relative to a direct American benchmark in this vanilla test case.
+
+### What has and has not been validated
+
+The current study provides meaningful but limited validation.
+
+**Validated reasonably well:**
+
+- sign and ordering of early-exercise premia;
+- monotonicity with respect to strike;
+- American prices above European prices;
+- LSMC proximity to the direct binomial American benchmark.
+
+**Not yet fully validated:**
+
+- robustness across random seeds;
+- convergence with respect to path count;
+- convergence with respect to number of time steps;
+- sensitivity to basis degree or basis family;
+- calibration to observed option-market implied volatilities;
+- comparison to market quotes or to dual-bound methods.
+
+This distinction matters. A good course report should present the validation that exists, but also state clearly where the testing remains incomplete.
+
+## Critical assessment: practical relevance, strengths, and limitations
+
+### Why regression-based Monte Carlo matters in practice
+
+The importance of LSMC and related regression methods is not confined to a vanilla put. Their real strength appears when the state space becomes too large for standard grids or trees. For example, callable structured products, interest-rate derivatives with multiple factors, swing options, and path-dependent contracts may involve continuation values that depend on several state variables and historical features. In those settings, regression-based Monte Carlo can remain computationally feasible when more classical low-dimensional methods become awkward or impossible.
+
+This is why Longstaff--Schwartz remains influential. It provides a practical way to combine simulation with dynamic programming, and it integrates naturally into broader Monte Carlo risk infrastructures already used by financial institutions.
+
+### Strengths of the current project design
+
+Even though the project is simplified, it has several strengths.
+
+- It studies a financially important problem: optimal stopping for American derivatives.
+- It anchors the implementation in two major papers rather than treating the work as a purely coding exercise.
+- It connects theory to code explicitly.
+- It now includes a direct American benchmark, which materially improves the testing discussion.
+- It produces interpretable outputs beyond a single number, including an exercise-boundary visualization and a structured comparison across methods.
+
+### Important limitations of the current study
+
+The project also has clear limitations that should be stated directly.
+
+1. **Single-asset vanilla American put only.** The study is a controlled testbed, not a high-dimensional demonstration of the full breadth of either paper.
+2. **GBM with constant volatility and constant rate.** This is analytically convenient but restrictive relative to real equity markets.
+3. **Historical volatility rather than implied calibration.** Historical realized volatility is not the same as the risk-neutral implied volatility relevant for market-consistent pricing.
+4. **`^IRX` risk-free proxy.** This is operationally convenient but simplistic.
+5. **No explicit dividend modeling.** This matters in equity option pricing and affects early-exercise economics.
+6. **Simplified TVR implementation.** The comparator is pedagogical and should not be overclaimed as a full replication of the paper.
+7. **Limited robustness analysis.** The current study does not yet vary seeds, path counts, time steps, or basis specifications systematically.
+
+These are not minor footnotes; they define the scope of what the report can honestly claim.
+
+### Practical institutional risks if methods like these are used carelessly
+
+A strong critical section should go beyond saying that “all models have limitations.” In practice, regression-based American pricing methods can create several real institutional risks.
+
+- **Basis misspecification.** If the chosen regression basis cannot represent the true continuation function well, the stopping rule can be distorted and prices can be biased.
+- **Finite-sample regression noise.** Monte Carlo noise affects both price estimation and exercise decisions. This is especially problematic when the exercise rule depends on a small difference between intrinsic and continuation value.
+- **Sparse ITM regions.** At early dates or for certain strikes, there may be relatively few informative paths in the stopping region, making the exercise rule unstable.
+- **Error propagation through backward induction.** Small continuation-value errors at one date can affect all earlier dates.
+- **Governance and benchmarking failures.** In a production environment, relying on a regression engine without direct benchmarks, sensitivity analysis, or model validation can lead to persistent mispricing and weak risk oversight.
+
+The current TVR-style overvaluation relative to the binomial benchmark is a concrete example of why governance matters. A method can appear internally coherent and still be materially off relative to an appropriate benchmark.
+
+### Suggested future improvements
+
+If the project were extended, the most valuable next steps would be:
+
+1. **Richer calibration.** Use implied volatility inputs and, if relevant, dividend adjustments.
+2. **Robustness analysis.** Repeat the study across seeds, path counts, time steps, and basis choices.
+3. **Alternative dynamics.** Consider local volatility, stochastic volatility, stochastic rates, or jump risk where appropriate.
+4. **Variance reduction and error controls.** Add antithetic sampling, control variates, or quasi-Monte Carlo methods.
+5. **Bias quantification.** Use stronger validation tools such as dual bounds.
+6. **Broader applications.** Extend the framework to path-dependent or multi-factor contracts, where regression-based Monte Carlo has greater comparative advantage.
+
+These improvements would move the project closer to the practical settings that originally motivated the two papers.
+
+## Honest project framing
+
+It is important to state explicitly what this project is and what it is not.
+
+This project is a **controlled pedagogical replication and comparison study** of American put pricing under GBM. Its main methodological contribution is a compact implementation of Longstaff--Schwartz LSMC together with a simplified TVR-style fitted-value-iteration comparator and a direct American binomial benchmark.
+
+It is **not**:
+
+- a production pricing library;
+- a market-calibrated institutional valuation system;
+- a full high-dimensional implementation of all examples in Longstaff and Schwartz (2001);
+- a full theoretical or computational reproduction of Tsitsiklis and Van Roy (2001).
+
+This honesty strengthens rather than weakens the report. It aligns the claims with the actual code and makes the critical assessment more credible.
+
+## Conclusion
+
+This project studies the pricing of American put options as an optimal stopping problem and compares two regression-based simulation viewpoints in a controlled GBM environment. The principal implementation is the Longstaff--Schwartz least-squares Monte Carlo method, which estimates continuation values from simulated risk-neutral paths using regression on basis functions. A simplified Tsitsiklis--Van Roy style fitted-value-iteration comparator is included to provide an approximate dynamic-programming perspective on the same problem.
+
+The results support several clear conclusions. The American prices exceed the European Black--Scholes prices, and values rise with the strike, both of which are financially sensible. More importantly, the strengthened validation framework shows that the LSMC estimates are close to the direct American binomial benchmark across all tested strikes. This provides evidence that the main implementation is working reasonably well in the vanilla test case studied here. In contrast, the simplified TVR-style comparator produces materially higher values than the binomial benchmark, suggesting that approximation architecture and implementation design can have a large effect on estimated continuation values and hence on American option prices.
+
+The overall lesson is therefore twofold. First, regression-based Monte Carlo is a powerful and practically important framework for American option pricing, especially when the dimensionality of the problem makes lattice methods less attractive. Second, these methods require careful benchmarking, specification, and governance. In that sense, the project succeeds not only as a replication exercise, but also as a demonstration of why implementation details matter in quantitative finance.
+
+## Reproducibility and code execution notes
+
+The project is designed to be reproducible from the project directory with a standard Python environment. The main numerical study is driven by `src/run_study0.py`, which loads data, estimates model inputs, computes the European and American benchmarks, runs the LSMC and TVR-style procedures, and regenerates both the pricing table and the figures used in this report.
+
+A typical workflow is:
 
 ```bash
 python -m pip install yfinance pandas numpy matplotlib
-python src/run_study.py
+python src/run_study0.py
 ```
 
-Running `run_study.py` downloads the underlying price data, estimates the model inputs, computes the European and American option prices, and regenerates the output files used in the report. In particular, it updates the pricing table in `data/pricing_results.csv` and recreates the figures stored in the `visuals` folder.
-
-After the numerical outputs have been generated, the written report can be rendered from the Quarto source file with:
+Running this script updates `data/pricing_results.csv` and the figures in `visuals/`. The report can then be rendered from the Quarto source file using:
 
 ```bash
 quarto render report/american_options_lsmc_study.qmd --to pdf
 ```
 
-If PDF rendering tools are unavailable, the report can instead be rendered to HTML with:
+If PDF rendering is unavailable, HTML output can be generated instead:
 
 ```bash
 quarto render report/american_options_lsmc_study.qmd --to html
 ```
 
-Overall, the project is reproducible in the sense that the market inputs, numerical outputs, and written report are all generated from the same codebase and file structure. This makes it possible to rerun the experiment with updated market data or modified parameter settings while preserving a clear connection between the implementation and the final written analysis.
+Because market data are downloaded dynamically, numerical outputs may change slightly when the script is rerun at a different date. That is expected. The report should therefore be interpreted as a reproducible workflow rather than as a claim that the exact same prices will remain fixed indefinitely.
+
+## References
+
+Longstaff, F. A., & Schwartz, E. S. (2001). Valuing American options by simulation: A simple least-squares approach. *The Review of Financial Studies*, 14(1), 113--147.
+
+Tsitsiklis, J. N., & Van Roy, B. (2001). Regression methods for pricing complex American-style options. *IEEE Transactions on Neural Networks*, 12(4), 694--703.

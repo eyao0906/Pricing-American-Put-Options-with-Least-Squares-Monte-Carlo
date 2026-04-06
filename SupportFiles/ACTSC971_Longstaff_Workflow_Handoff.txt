@@ -1,0 +1,391 @@
+ACTSC 971 Longstaff Workflow Handoff
+====================================
+
+Purpose
+-------
+This file packages the exact execution prompt and the interpretation of the work so it can be pasted into any future conversation.
+
+Interpretation
+--------------
+- This handoff is designed to preserve the intent of the Longstaff paper workflow, not just the coding tasks.
+- The main benchmark must be synthetic and paper-style. Historical AAPL inputs are explicitly demoted to optional side material.
+- The vanilla American put benchmark is the validation anchor because it has direct American pricing benchmarks available.
+- The Asian option extension demonstrates regression on multiple state variables: current spot and running average.
+- The jump-diffusion extension demonstrates that the LSM engine should be independent from any one path model.
+- Antithetic variates should be incorporated as a standard variance-reduction feature in the GBM-based simulators.
+- The final codebase should be modular: basis construction, simulation, generic LSM backward induction, and benchmarks should be clearly separated.
+- Robustness checks are part of the deliverable, not a nice-to-have add-on.
+
+Reusable Prompt
+---------------
+
+You are working on an existing ACTSC 971 American option pricing project. Execute the workflow below directly and concretely. Do not give a high-level plan only. Implement the code and organize outputs exactly as specified. If any part is already partially implemented, review it, reuse what is sound, and refactor where necessary. Make best-effort progress without asking unnecessary clarification questions.
+
+PROJECT ROOT
+- C:\Users\Ethan Yao\Downloads\ACTSC971FInal
+
+DIRECTORY RULES
+- Put all code implementation in:
+  C:\Users\Ethan Yao\Downloads\ACTSC971FInal\src\LongstaffMethod
+- Any datasets or generated input tables/config snapshots should save/read from:
+  C:\Users\Ethan Yao\Downloads\ACTSC971FInal\data
+- Any output visuals should go in:
+  C:\Users\Ethan Yao\Downloads\ACTSC971FInal\visuals
+- Any table/comparison results should go in:
+  C:\Users\Ethan Yao\Downloads\ACTSC971FInal\outputs
+
+OVERALL OBJECTIVE
+Refactor the current Longstaff-Schwartz project into a compact but faithful realization of the Longstaff & Schwartz (2001) paper with:
+1. Exact paper-style vanilla American put benchmark replication in a synthetic GBM setting.
+2. Deeper robustness checks.
+3. A direct American benchmark against ground truth for the vanilla case.
+4. Example 2 implementation: American–Bermuda–Asian option using regression on multiple state variables.
+5. Example 4 implementation: jump-diffusion American put showing the method is not tied to standard Brownian motion.
+6. Antithetic variates added to the GBM path generator and used where appropriate.
+
+IMPORTANT POSITIONING
+- Do NOT use AAPL or historical market data as the main benchmark.
+- The main benchmark must be the paper-style synthetic setup.
+- AAPL may remain only as an optional secondary illustration if already in the repo, but it must not be the main validation track.
+- Focus first on faithful synthetic replication and validation, then on the two extension examples.
+
+CURRENT CONTEXT
+The repo already has code related to:
+- lsmc.py
+- tsitsiklis_vanroy.py
+- data_loader.py
+- run_study0.py or similar
+There may also already be pricing results and visuals. Review existing code carefully, preserve what is correct, and replace what is inconsistent with the workflow below.
+
+========================================
+PART A — REBUILD THE VANILLA LONGSTAFF BENCHMARK
+========================================
+
+Implement a paper-style synthetic benchmark for the vanilla American put with the following setup:
+- Strike K = 40
+- Risk-free rate r = 0.06
+- Spot values S in {36, 38, 40, 42, 44}
+- Volatilities sigma in {0.20, 0.40}
+- Maturities T in {1, 2}
+- Exercise opportunities: 50 dates per year
+- Monte Carlo paths: 100,000 total using 50,000 base + 50,000 antithetic
+- Basis functions: constant + first three weighted Laguerre polynomials, consistent with Longstaff-Schwartz style
+- Non-dividend-paying stock under risk-neutral GBM
+
+TASK A1 — PATH GENERATION
+Refactor the current GBM simulator so it can generate antithetic paths cleanly.
+Requirements:
+- Generate half the paths with standard normals Z and the other half with -Z.
+- Keep the API clean and reusable.
+- Save any synthetic benchmark configuration table to data if useful.
+
+TASK A2 — GENERIC LSM ENGINE
+Refactor the LSM implementation so the backward induction engine is reusable and not tightly coupled to a specific simulator.
+The engine should take in at least:
+- simulated paths or state paths
+- payoff function
+- basis function builder
+- exercise-eligibility logic
+- discounting inputs
+It should return at least:
+- price
+- Monte Carlo standard error
+- realized stopping times
+- a usable summary for empirical exercise boundary plotting
+- optionally fitted regression coefficients by time step
+
+TASK A3 — DIRECT AMERICAN GROUND TRUTH
+Implement a direct American benchmark for the vanilla put.
+Priority order:
+1. Implicit finite difference as the main “ground truth” benchmark
+2. Optional explicit finite difference as a cross-check
+3. Optional CRR binomial tree as an additional sanity benchmark
+Use the finite-difference benchmark as the primary benchmark in the results table.
+
+TASK A4 — EUROPEAN REFERENCE
+Implement Black-Scholes European put pricing for the same parameter grid.
+
+TASK A5 — PAPER-STYLE RESULT TABLE
+For each (S, sigma, T) case, generate a results table containing at least:
+- spot
+- strike
+- sigma
+- maturity
+- European put (Black-Scholes)
+- American put (finite difference benchmark)
+- early exercise premium from finite difference
+- American put (LSMC)
+- LSMC standard error
+- LSMC early exercise premium
+- difference between LSMC early exercise premium and benchmark early exercise premium
+- optional CRR tree American price
+Save the table to outputs as CSV.
+
+Suggested filename:
+- outputs/longstaff_vanilla_benchmark.csv
+
+========================================
+PART B — ROBUSTNESS AND VALIDATION
+========================================
+
+Add deeper diagnostics for the vanilla benchmark.
+
+TASK B1 — IN-SAMPLE VS OUT-OF-SAMPLE STOPPING RULE TEST
+Implement the Longstaff-style diagnostic:
+- Fit the LSM regressions on one path set.
+- Apply the learned stopping rule to a separate out-of-sample path set.
+- Compare in-sample and out-of-sample valuations.
+- Run this on a representative subset of vanilla cases, not necessarily every case.
+- Repeat across multiple seeds.
+
+Save results to CSV:
+- outputs/longstaff_vanilla_in_vs_out_sample.csv
+
+TASK B2 — PATH COUNT SENSITIVITY
+Test at least:
+- 25,000
+- 50,000
+- 100,000
+- 200,000 total paths
+Compare LSMC price, standard error, and deviation from benchmark.
+
+Save results:
+- outputs/longstaff_vanilla_paths_sensitivity.csv
+
+TASK B3 — TIME STEP / EXERCISE FREQUENCY SENSITIVITY
+Test at least:
+- 25 exercise dates/year
+- 50 exercise dates/year
+- 100 exercise dates/year
+
+Save results:
+- outputs/longstaff_vanilla_timestep_sensitivity.csv
+
+TASK B4 — BASIS SIZE SENSITIVITY
+Test at least:
+- 2 basis functions
+- 3 basis functions
+- 4 basis functions
+- optionally 5 basis functions
+Track valuation stability relative to benchmark.
+
+Save results:
+- outputs/longstaff_vanilla_basis_sensitivity.csv
+
+TASK B5 — SEED SENSITIVITY
+Run multiple seeds for at least a representative subset of vanilla cases and summarize:
+- mean LSM price
+- standard deviation across runs
+- average bias vs benchmark
+
+Save results:
+- outputs/longstaff_vanilla_seed_sensitivity.csv
+
+========================================
+PART C — EXAMPLE 2: AMERICAN–BERMUDA–ASIAN OPTION
+========================================
+
+Implement Example 2 to show regression on multiple state variables.
+
+TARGET DESIGN
+- Path-dependent option with state variables:
+  1. current spot S_t
+  2. running arithmetic average A_t
+- Exercise eligibility begins only after a lockout period
+- LSM regression must use multiple state variables and cross terms
+
+Use a setup that is consistent with the Longstaff example structure:
+- Maturity T = 2
+- Exercise lockout until t = 0.25
+- Arithmetic running average as a state variable
+- Underlying stock follows risk-neutral GBM
+- Payoff at exercise based on the average, not just spot
+
+TASK C1 — MULTI-STATE SIMULATOR
+Implement a simulator that produces both:
+- spot path S_t
+- running arithmetic average path A_t
+for each simulation path.
+
+TASK C2 — MULTI-VARIABLE BASIS
+Implement a basis builder for state = [S_t, A_t].
+Include:
+- constant
+- Laguerre-style terms in normalized spot
+- Laguerre-style terms in normalized average
+- cross-product terms
+Keep the implementation compact but explicit.
+
+TASK C3 — EXERCISE MASK
+Implement exercise eligibility logic so exercise is not allowed before the lockout date.
+
+TASK C4 — ASIAN RUN SCRIPT
+Create a run script for this example.
+Output:
+- price table(s)
+- key parameter snapshot(s)
+- at least one visual showing paths and/or value behavior and/or exercise-region-type behavior
+- short CSV summary
+
+Suggested output files:
+- outputs/longstaff_asian_results.csv
+- visuals/longstaff_asian_paths_example.png
+- visuals/longstaff_asian_state_scatter.png
+Use clear file names if you choose different ones.
+
+IMPORTANT
+- If a finite-difference benchmark for the Asian case is too heavy for a compact implementation, be explicit in code comments and any summary output that the direct benchmark emphasis is concentrated on the vanilla case.
+- Still implement the Asian example correctly as an LSM extension with multiple state variables.
+
+========================================
+PART D — EXAMPLE 4: JUMP-DIFFUSION AMERICAN PUT
+========================================
+
+Implement Example 4 to show the LSM algorithm is not tied to standard Brownian motion.
+
+TARGET DESIGN
+Implement a jump-diffusion American put with a jump-to-ruin style process:
+- Brownian diffusion component
+- Poisson jump component
+- once ruin jump occurs, stock value goes to zero for the rest of the path
+
+Use a compact setup inspired by the Longstaff example:
+- compare a no-jump case vs a jump case
+- keep the same LSM regression logic as in vanilla
+- change only the simulator/model side
+
+TASK D1 — JUMP SIMULATOR
+Implement a jump-to-ruin path simulator:
+- discrete time approximation
+- if a jump occurs at a time step, set the stock to zero thereafter
+- support random seed control
+- optionally antithetic treatment for Brownian shocks; pairing for jump uniforms is optional but welcome if done carefully
+
+TASK D2 — REUSE THE SAME LSM ENGINE
+Do not duplicate the backward induction logic.
+Use the same generic LSM engine from Part A.
+
+TASK D3 — RESULTS AND VISUALS
+Produce a compact comparison including at least:
+- no-jump American put price
+- jump-diffusion American put price
+- corresponding European values
+- early exercise premium comparison
+- at least one visual comparing empirical exercise boundary or price behavior between the two cases
+
+Suggested outputs:
+- outputs/longstaff_jump_results.csv
+- visuals/longstaff_jump_boundary_comparison.png
+
+========================================
+PART E — CODE STRUCTURE
+========================================
+
+Refactor toward a compact, modular structure. You do not need to match these names exactly, but the structure should clearly separate concerns.
+
+Suggested modules under src:
+- basis.py
+  - weighted Laguerre basis for 1D
+  - basis for 2D state variables with cross terms
+- simulators.py
+  - GBM simulator with antithetic variates
+  - GBM + running average simulator
+  - jump-to-ruin simulator
+- lsm_engine.py
+  - generic backward induction engine
+- benchmarks.py
+  - Black-Scholes European put
+  - finite-difference American put
+  - optional CRR tree
+- run_longstaff_vanilla.py
+  - exact synthetic benchmark + robustness
+- run_longstaff_asian.py
+  - Example 2
+- run_longstaff_jump.py
+  - Example 4
+
+If keeping existing files is easier, still ensure the logic is cleanly modularized and not tangled.
+
+========================================
+PART F — VISUALS
+========================================
+
+Create clean visuals in visuals. At minimum generate:
+1. Vanilla benchmark comparison plot
+   - LSMC vs FD benchmark, possibly by case
+2. Vanilla empirical exercise boundary plot for representative cases
+3. Robustness plots
+   - path sensitivity
+   - basis sensitivity
+4. Asian example visual(s)
+5. Jump-diffusion comparison visual(s)
+
+Suggested filenames:
+- visuals/longstaff_vanilla_benchmark_comparison.png
+- visuals/longstaff_vanilla_exercise_boundary.png
+- visuals/longstaff_vanilla_paths_sensitivity.png
+- visuals/longstaff_vanilla_basis_sensitivity.png
+- visuals/longstaff_asian_paths_example.png
+- visuals/longstaff_asian_state_scatter.png
+- visuals/longstaff_jump_boundary_comparison.png
+
+========================================
+PART G — OUTPUT REQUIREMENTS
+========================================
+
+Save comparison/result tables to outputs.
+At minimum produce:
+- outputs/longstaff_vanilla_benchmark.csv
+- outputs/longstaff_vanilla_in_vs_out_sample.csv
+- outputs/longstaff_vanilla_paths_sensitivity.csv
+- outputs/longstaff_vanilla_timestep_sensitivity.csv
+- outputs/longstaff_vanilla_basis_sensitivity.csv
+- outputs/longstaff_vanilla_seed_sensitivity.csv
+- outputs/longstaff_asian_results.csv
+- outputs/longstaff_jump_results.csv
+
+Also produce a short execution summary file:
+- outputs/longstaff_execution_summary.txt
+
+This summary should state:
+- what was implemented
+- what files were created/updated
+- which parts match the paper benchmark closely
+- which parts are compact approximations rather than exact reproductions
+- any numerical caveats
+
+========================================
+PART H — IMPLEMENTATION STANDARDS
+========================================
+
+- Use clear comments.
+- Keep functions reusable and typed where practical.
+- Preserve reproducibility via explicit random seeds.
+- Do not silently overwrite essential existing files without reason.
+- Reuse correct existing code where possible, but do not keep inconsistent historical-data logic in the main benchmark path.
+- Keep the code compact and readable rather than over-engineered.
+- Avoid mixing the AAPL/historical calibration track into the main Longstaff benchmark scripts.
+- Where exact paper reproduction is not practical, document it honestly in comments and in the execution summary.
+
+========================================
+PART I — PRIORITY ORDER
+========================================
+
+If time or tool limits force prioritization, do the work in this order:
+1. Vanilla benchmark replication with antithetic GBM + FD ground truth
+2. Vanilla robustness checks
+3. Asian example
+4. Jump-diffusion example
+5. Any optional market-data illustration
+
+========================================
+PART J — FINAL DELIVERY
+========================================
+
+At the end, provide:
+1. A concise summary of what you changed
+2. The list of created/updated files
+3. Any important assumptions or deviations
+4. The exact commands to run the scripts from the project root
+
+Do not stop at a plan. Execute the implementation.

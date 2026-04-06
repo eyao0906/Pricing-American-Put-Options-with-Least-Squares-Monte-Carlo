@@ -12,7 +12,7 @@ from lsm_engine import fit_lsm
 from simulators import simulate_gbm_paths, simulate_jump_to_ruin_paths
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 OUTPUT_DIR = PROJECT_ROOT / "outputs"
 VISUALS_DIR = PROJECT_ROOT / "visuals"
 

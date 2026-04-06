@@ -1,12 +1,8 @@
 from __future__ import annotations
-
 from typing import Iterable
-
 import numpy as np
 
-
 Array = np.ndarray
-
 
 def weighted_laguerre_polynomials(x: Array, order: int = 4) -> Array:
     """Return weighted Laguerre basis columns e^{-x/2} L_n(x), n=0,...,order-1.

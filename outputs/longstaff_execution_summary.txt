@@ -1,0 +1,80 @@
+Longstaff-Schwartz Execution Summary
+===================================
+
+Implemented
+-----------
+1. Synthetic paper-style vanilla American put benchmark centered on K=40, r=0.06,
+   S in {36,38,40,42,44}, sigma in {0.20,0.40}, T in {1,2}, 50 exercise dates/year,
+   and 100,000 total Monte Carlo paths using 50,000 base + 50,000 antithetic paths.
+2. Reusable LSM engine decoupled from any specific simulator.
+3. Weighted Laguerre basis for vanilla and multi-state basis with cross terms for the Asian example.
+4. Implicit finite-difference American put benchmark as the primary direct benchmark for vanilla,
+   plus CRR binomial tree as an optional sanity check.
+5. Black-Scholes European put reference pricing on the full vanilla grid.
+6. Vanilla robustness studies:
+   - in-sample vs out-of-sample stopping rule test
+   - path count sensitivity
+   - exercise-frequency sensitivity
+   - basis-size sensitivity
+   - seed sensitivity
+7. Example 2: American-Bermuda-Asian option with spot and running arithmetic average as state variables.
+8. Example 4: jump-to-ruin American put showing the same LSM engine works beyond standard GBM.
+
+Created / Updated Files
+-----------------------
+Code under src/
+- src/basis.py
+- src/simulators.py
+- src/lsm_engine.py
+- src/benchmarks.py
+- src/run_longstaff_vanilla.py
+- src/run_longstaff_asian.py
+- src/run_longstaff_jump.py
+- src/run_study.py
+- README.md
+
+Data / outputs
+- data/longstaff_vanilla_config.csv
+- outputs/longstaff_vanilla_benchmark.csv
+- outputs/longstaff_vanilla_exercise_boundary_summary.csv
+- outputs/longstaff_vanilla_in_vs_out_sample.csv
+- outputs/longstaff_vanilla_paths_sensitivity.csv
+- outputs/longstaff_vanilla_timestep_sensitivity.csv
+- outputs/longstaff_vanilla_basis_sensitivity.csv
+- outputs/longstaff_vanilla_seed_sensitivity.csv
+- outputs/longstaff_asian_results.csv
+- outputs/longstaff_jump_results.csv
+- outputs/longstaff_execution_summary.txt
+
+Visuals
+- visuals/longstaff_vanilla_benchmark_comparison.png
+- visuals/longstaff_vanilla_exercise_boundary.png
+- visuals/longstaff_vanilla_paths_sensitivity.png
+- visuals/longstaff_vanilla_basis_sensitivity.png
+- visuals/longstaff_asian_paths_example.png
+- visuals/longstaff_asian_state_scatter.png
+- visuals/longstaff_jump_boundary_comparison.png
+
+Paper Match / Fidelity Notes
+----------------------------
+- The main benchmark track now follows a synthetic Longstaff-Schwartz style setup rather than historical AAPL data.
+- Vanilla pricing uses weighted Laguerre basis functions and risk-neutral GBM with antithetic variates.
+- The direct American benchmark emphasis is concentrated on the vanilla put, using implicit finite difference.
+- The Asian and jump examples are compact realizations faithful to the paper's spirit and algorithmic message,
+  but not intended as exact line-by-line reproductions of every numerical setting in the paper.
+
+Compact Approximations / Deviations
+----------------------------------
+- The implicit finite-difference solver is a compact uniform-grid implementation, suitable as a strong benchmark
+  but not a fully optimized production PDE solver.
+- The Asian example does not include a direct PDE benchmark; this is explicitly documented in code/output.
+- The jump example uses a discrete-time jump-to-ruin approximation. The core point is that only the simulator changes,
+  while the LSM backward induction engine is reused unchanged.
+- Exercise-boundary visuals are empirical summaries from exercised paths rather than an analytically exact boundary.
+
+Numerical Caveats
+-----------------
+- LSM values for some vanilla cases remain above the finite-difference benchmark by a noticeable amount. This is not hidden;
+  it is recorded directly in the benchmark and sensitivity tables.
+- Out-of-sample values are generally below in-sample values, which is expected and is part of the diagnostic.
+- The finite-difference benchmark is the primary benchmark for vanilla; CRR values are included only as an additional check.

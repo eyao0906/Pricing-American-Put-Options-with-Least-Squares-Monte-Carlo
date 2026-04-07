@@ -1,0 +1,62 @@
+TVR Report Revision Log
+=======================
+Revision date: 2026-04-07
+
+Files revised
+-------------
+- C:\Users\Ethan Yao\Downloads\ACTSC971FInal\report\american_options_lsmc_study.qmd
+
+Sections substantially changed
+------------------------------
+- Introduction
+- Conceptual comparison of the two papers
+- Section 7: Integrated implementation workflow and code design
+- Section 8: Experimental design
+- Section 9: Results (fully reorganized)
+- Section 10: Implementation and testing
+- Section 11: Critical assessment: strengths, weaknesses, and practical risks
+- Section 12: Scope and claims
+- Section 13: Conclusions
+- Section 14: Reproducibility / code execution
+
+Old structure/content removed or reframed
+----------------------------------------
+- Removed the Longstaff-only implementation narrative in Section 7 and replaced it with an integrated Longstaff/TVR workflow description.
+- Reframed the results chapter from a primarily Longstaff-focused sequence into a shared-case comparison structure.
+- Removed stale wording that implied the project should be read as a mostly single-method study.
+- Reduced separation between the two papers so the report reads as one study rather than two disconnected halves.
+
+New TVR structure/content added
+-------------------------------
+- Added TVR outputs and interpretation to the shared vanilla benchmark section.
+- Added TVR in-sample vs out-of-sample diagnostics to the robustness discussion.
+- Added TVR path, timestep, and basis sensitivity interpretation.
+- Added TVR Asian-style extension results and figure reference.
+- Added TVR jump-style extension results and figure reference.
+- Added a dedicated direct Longstaff vs TVR comparison subsection.
+- Added TVR execution commands in the reproducibility section.
+
+Figure/table references added or changed
+----------------------------------------
+Added/used figure references:
+- @fig-vanilla-benchmark
+- @fig-tvr-vanilla
+- @fig-vanilla-boundary
+- @fig-longstaff-jump-boundary
+- @fig-tvr-jump-boundary
+- @fig-longstaff-asian-scatter
+- @fig-tvr-asian-scatter
+
+Results tables were reorganized into shared-case families:
+- shared vanilla benchmark
+- shared robustness analysis
+- shared Asian-style extension
+- shared jump-style extension
+- direct Longstaff vs TVR comparison
+
+Unresolved issues / manual review items
+---------------------------------------
+- The Quarto file now includes more displayed tables; manual review is recommended for PDF pagination and table overflow.
+- Figure numbering and cross-references should be checked after rendering.
+- The report references both Longstaff and TVR visuals, but only a subset currently has directly comparable boundary figures.
+- If a tighter final document is desired, some printed data-frame tables may later be converted to formatted Quarto tables with captions.

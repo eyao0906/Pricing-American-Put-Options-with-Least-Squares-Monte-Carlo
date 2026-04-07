@@ -1,0 +1,56 @@
+Report Formatting Revision Log
+==============================
+Date/time: 2026-04-07 01:14 EDT
+
+File revised
+------------
+- C:\Users\Ethan Yao\Downloads\ACTSC971FInal\report\american_options_lsmc_study.qmd
+
+Formatting issues fixed
+-----------------------
+- Replaced raw dataframe-style result blocks with labeled Quarto tables.
+- Added table labels and captions throughout the results section.
+- Added figure labels and standardized figure captions.
+- Removed mixed manual/automatic reference wording that could produce duplicated text such as "Figure Figure".
+- Added PDF float controls (`fig-pos: H`, `tbl-pos: H`) and LaTeX support packages for cleaner placement.
+- Inserted `\FloatBarrier` separators between major results subsections to reduce float drift.
+- Kept related tables/figures close to the paragraphs that interpret them.
+- Reworked the Longstaff seed output so summary rows are no longer mixed into the seed column.
+- Split the seed material into a seed-level table and a summary table.
+- Expanded interpretation below each major table and figure so results are not left unexplained.
+- Standardized naming across the report: Longstaff--Schwartz, Tsitsiklis--Van Roy, Asian-style extension, jump-style extension.
+- Standardized caption style across Longstaff and TVR visuals.
+
+Table/figure references changed
+-------------------------------
+Added or standardized references:
+- @tbl-lsm-vanilla
+- @tbl-tvr-vanilla
+- @tbl-lsm-inout
+- @tbl-tvr-inout
+- @tbl-lsm-paths
+- @tbl-tvr-paths
+- @tbl-lsm-timestep
+- @tbl-tvr-timestep
+- @tbl-lsm-basis
+- @tbl-tvr-basis
+- @tbl-lsm-seed-runs
+- @tbl-lsm-seed-summary
+- @tbl-lsm-asian
+- @tbl-tvr-asian
+- @tbl-lsm-jump
+- @tbl-tvr-jump
+- @fig-vanilla-benchmark
+- @fig-tvr-vanilla
+- @fig-vanilla-boundary
+- @fig-longstaff-jump-boundary
+- @fig-tvr-jump-boundary
+- @fig-longstaff-asian-scatter
+- @fig-tvr-asian-scatter
+
+Remaining manual-review issues
+------------------------------
+- The PDF should still be rendered and checked for final pagination and any table wrapping edge cases.
+- Depending on the PDF engine, some wide robustness tables may still benefit from manual refinement or landscape placement.
+- Cross-references should be checked once in the rendered PDF to ensure all labels resolve exactly as intended.
+- If further polishing is desired, some robustness tables could be shortened further by moving less important columns into an appendix.

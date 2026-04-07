@@ -1,0 +1,2 @@
+example,spot0,strike,risk_free,sigma,maturity,lockout_time,exercise_dates,paths_total,tvr_price_in_sample,tvr_price_out_of_sample,tvr_stderr_out_of_sample,european_style_mc,early_exercise_premium_vs_euro_mc,benchmark_note
+TVR Asian shared extension,40.0,40.0,0.06,0.2,2.0,0.25,100,100000,1.719915023757764,1.7159395242920146,0.007945868168186456,1.446794042958756,0.26914548133325855,Compact shared extension study; no direct PDE benchmark included for the Asian case.

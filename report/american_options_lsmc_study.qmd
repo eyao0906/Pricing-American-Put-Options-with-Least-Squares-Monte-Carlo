@@ -8,6 +8,11 @@ format:
     number-sections: true
     fig-pos: H
     tbl-pos: H
+    geometry:
+      - top=0.7in
+      - bottom=0.7in
+      - left=0.75in
+      - right=0.75in
 execute:
   echo: false
   warning: false
@@ -19,7 +24,6 @@ header-includes:
   - \usepackage{longtable}
   - \usepackage{pdflscape}
 ---
-
 ```{python}
 import pandas as pd
 
@@ -48,6 +52,8 @@ longstaff_seed_summary['case'] = (
     + ', T=' + longstaff_seed_summary['maturity'].astype(str)
 )
 ```
+
+\newpage
 
 ## Introduction
 

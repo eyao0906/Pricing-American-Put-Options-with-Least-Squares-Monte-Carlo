@@ -8,7 +8,7 @@ import pandas as pd
 
 from basis import vanilla_put_basis
 from benchmarks import american_put_binomial_crr, american_put_implicit_fd, black_scholes_put
-from lsm_engine import fit_lsm
+from lsm_engine import LSMResult, fit_lsm
 from simulators import simulate_gbm_paths
 
 
@@ -48,9 +48,35 @@ def price_vanilla_lsm(
     dates_per_year: int = DEFAULT_DATES_PER_YEAR,
     basis_size: int = 4,
     seed: int = BASE_SEED,
+    split_policy: str = "two_pass",
 ):
     steps = int(round(maturity * dates_per_year))
-    sim = simulate_gbm_paths(
+    payoff_fn = lambda states, t: put_payoff(states, t, strike=STRIKE)
+    basis_fn = lambda states, t: vanilla_put_basis(states["spot"][:, t], strike=STRIKE, basis_size=basis_size)
+
+    if split_policy == "same_paths":
+        sim = simulate_gbm_paths(
+            s0=spot,
+            r=RISK_FREE,
+            sigma=sigma,
+            maturity=maturity,
+            steps=steps,
+            n_paths=paths,
+            seed=seed,
+            antithetic=True,
+        )
+        result, policy = fit_lsm(
+            states=sim.states,
+            payoff_fn=payoff_fn,
+            basis_fn=basis_fn,
+            exercise_mask_fn=always_exercisable,
+            r=RISK_FREE,
+            maturity=maturity,
+        )
+        diagnostics = {"split_policy": split_policy, "fit_seed": seed, "eval_seed": seed}
+        return sim, result, policy, diagnostics
+
+    fit_sim = simulate_gbm_paths(
         s0=spot,
         r=RISK_FREE,
         sigma=sigma,
@@ -60,21 +86,49 @@ def price_vanilla_lsm(
         seed=seed,
         antithetic=True,
     )
-    payoff_fn = lambda states, t: put_payoff(states, t, strike=STRIKE)
-    basis_fn = lambda states, t: vanilla_put_basis(states["spot"][:, t], strike=STRIKE, basis_size=basis_size)
-    result, policy = fit_lsm(
-        states=sim.states,
+    fit_result, policy = fit_lsm(
+        states=fit_sim.states,
         payoff_fn=payoff_fn,
         basis_fn=basis_fn,
         exercise_mask_fn=always_exercisable,
         r=RISK_FREE,
         maturity=maturity,
     )
-    return sim, result, policy
+    eval_seed = seed + 7919
+    eval_sim = simulate_gbm_paths(
+        s0=spot,
+        r=RISK_FREE,
+        sigma=sigma,
+        maturity=maturity,
+        steps=steps,
+        n_paths=paths,
+        seed=eval_seed,
+        antithetic=True,
+    )
+    eval_price, eval_stderr, stopping_times, discounted = policy.evaluate(eval_sim.states, r=RISK_FREE)
+    result = LSMResult(
+        price=eval_price,
+        stderr=eval_stderr,
+        discounted_cashflows=discounted,
+        stopping_times=stopping_times,
+        stopping_payoffs=np.zeros_like(stopping_times, dtype=float),
+        exercise_summary=fit_result.exercise_summary,
+        regression_steps=fit_result.regression_steps,
+    )
+    diagnostics = {
+        "split_policy": split_policy,
+        "fit_seed": seed,
+        "eval_seed": eval_seed,
+        "fit_price": fit_result.price,
+        "fit_stderr": fit_result.stderr,
+        "eval_price": eval_price,
+        "eval_stderr": eval_stderr,
+    }
+    return eval_sim, result, policy, diagnostics
 
 
-def benchmark_row(spot: float, sigma: float, maturity: float, seed: int = BASE_SEED) -> tuple[dict[str, float], list[dict[str, float]]]:
-    _, lsm_result, _ = price_vanilla_lsm(spot=spot, sigma=sigma, maturity=maturity, seed=seed)
+def benchmark_row(spot: float, sigma: float, maturity: float, seed: int = BASE_SEED) -> tuple[dict[str, float], list[dict[str, float]], dict[str, float]]:
+    _, lsm_result, _, diagnostics = price_vanilla_lsm(spot=spot, sigma=sigma, maturity=maturity, seed=seed)
     european = black_scholes_put(spot, STRIKE, RISK_FREE, sigma, maturity)
     steps = int(round(maturity * DEFAULT_DATES_PER_YEAR))
     american_fd = american_put_implicit_fd(spot, STRIKE, RISK_FREE, sigma, maturity, exercise_steps=steps)
@@ -92,11 +146,13 @@ def benchmark_row(spot: float, sigma: float, maturity: float, seed: int = BASE_S
         "fd_early_exercise_premium": american_fd - european,
         "american_put_lsmc": lsm_result.price,
         "lsmc_stderr": lsm_result.stderr,
+        "lsmc_fit_price": diagnostics.get("fit_price", lsm_result.price),
+        "lsmc_fit_minus_eval": diagnostics.get("fit_price", lsm_result.price) - lsm_result.price,
         "lsmc_early_exercise_premium": lsm_result.price - european,
         "lsmc_premium_minus_fd_premium": (lsm_result.price - european) - (american_fd - european),
         "american_put_crr": american_crr,
     }
-    return row, lsm_result.exercise_summary
+    return row, lsm_result.exercise_summary, diagnostics
 
 
 def run_benchmark_table() -> pd.DataFrame:
@@ -105,7 +161,8 @@ def run_benchmark_table() -> pd.DataFrame:
     for spot in SPOTS:
         for sigma in SIGMAS:
             for maturity in MATURITIES:
-                row, summaries = benchmark_row(spot, sigma, maturity)
+                row, summaries, diagnostics = benchmark_row(spot, sigma, maturity)
+                row.update({k: v for k, v in diagnostics.items() if isinstance(v, (int, float, str))})
                 rows.append(row)
                 for summary in summaries:
                     boundary_rows.append(
@@ -129,7 +186,13 @@ def run_in_vs_out_sample() -> pd.DataFrame:
         for repeat in range(3):
             seed_fit = BASE_SEED + 1000 * case_id + repeat
             seed_eval = BASE_SEED + 2000 * case_id + repeat
-            _, in_result, policy = price_vanilla_lsm(spot=spot, sigma=sigma, maturity=maturity, seed=seed_fit)
+            _, in_result, policy, diagnostics = price_vanilla_lsm(
+                spot=spot,
+                sigma=sigma,
+                maturity=maturity,
+                seed=seed_fit,
+                split_policy="same_paths",
+            )
             steps = int(round(maturity * DEFAULT_DATES_PER_YEAR))
             out_sim = simulate_gbm_paths(
                 s0=spot,
@@ -154,6 +217,8 @@ def run_in_vs_out_sample() -> pd.DataFrame:
                     "out_of_sample_price": out_price,
                     "out_of_sample_stderr": out_stderr,
                     "difference": in_result.price - out_price,
+                    "diagnostic_mode": "same_path_fit_vs_independent_eval",
+                    "fit_policy": diagnostics.get("split_policy", "same_paths"),
                 }
             )
     df = pd.DataFrame(rows)
@@ -170,7 +235,7 @@ def run_paths_sensitivity() -> pd.DataFrame:
             spot, STRIKE, RISK_FREE, sigma, maturity, exercise_steps=int(round(maturity * DEFAULT_DATES_PER_YEAR))
         )
         for paths in path_counts:
-            _, result, _ = price_vanilla_lsm(
+            _, result, _, _ = price_vanilla_lsm(
                 spot=spot,
                 sigma=sigma,
                 maturity=maturity,
@@ -200,7 +265,7 @@ def run_timestep_sensitivity() -> pd.DataFrame:
     rows = []
     for spot, sigma, maturity in cases:
         for dates_per_year in dates_per_year_list:
-            _, result, _ = price_vanilla_lsm(
+            _, result, _, _ = price_vanilla_lsm(
                 spot=spot,
                 sigma=sigma,
                 maturity=maturity,
@@ -236,7 +301,7 @@ def run_basis_sensitivity() -> pd.DataFrame:
             spot, STRIKE, RISK_FREE, sigma, maturity, exercise_steps=int(round(maturity * DEFAULT_DATES_PER_YEAR))
         )
         for basis_size in basis_sizes:
-            _, result, _ = price_vanilla_lsm(
+            _, result, _, _ = price_vanilla_lsm(
                 spot=spot,
                 sigma=sigma,
                 maturity=maturity,
@@ -270,7 +335,7 @@ def run_seed_sensitivity() -> pd.DataFrame:
         case_prices = []
         seeds = [BASE_SEED + i for i in range(5)]
         for seed in seeds:
-            _, result, _ = price_vanilla_lsm(spot=spot, sigma=sigma, maturity=maturity, seed=seed)
+            _, result, _, _ = price_vanilla_lsm(spot=spot, sigma=sigma, maturity=maturity, seed=seed)
             case_prices.append(result.price)
             rows.append(
                 {

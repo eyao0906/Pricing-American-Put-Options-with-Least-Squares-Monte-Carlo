@@ -17,6 +17,9 @@ class LSMRegressionStep:
     time_index: int
     coefficients: Array
     n_regression_paths: int
+    condition_number: float
+    continuation_mean: float
+    intrinsic_mean: float
 
 
 @dataclass
@@ -84,11 +87,24 @@ def fit_lsm(
     exercise_mask_fn: ExerciseMaskFn,
     r: float,
     maturity: float,
+    regression_path_mask: Array | None = None,
+    pricing_path_mask: Array | None = None,
+    min_regression_paths: int = 200,
 ) -> tuple[LSMResult, FittedLSMPolicy]:
     n_paths, n_steps_plus_one = next(iter(states.values())).shape
     steps = n_steps_plus_one - 1
     dt = maturity / steps
     discount = np.exp(-r * dt)
+
+    if regression_path_mask is None:
+        regression_path_mask = np.ones(n_paths, dtype=bool)
+    if pricing_path_mask is None:
+        pricing_path_mask = np.ones(n_paths, dtype=bool)
+
+    regression_path_mask = np.asarray(regression_path_mask, dtype=bool)
+    pricing_path_mask = np.asarray(pricing_path_mask, dtype=bool)
+    if regression_path_mask.shape != (n_paths,) or pricing_path_mask.shape != (n_paths,):
+        raise ValueError("path masks must have shape (n_paths,)")
 
     payoffs = np.column_stack([payoff_fn(states, t) for t in range(n_steps_plus_one)])
     continuation_cf = payoffs[:, -1].copy()
@@ -103,16 +119,32 @@ def fit_lsm(
         continuation_cf[alive] *= discount
         eligible = exercise_mask_fn(states, t) & alive
         intrinsic = payoffs[:, t]
-        itm = eligible & (intrinsic > 0.0)
+        regression_itm = eligible & regression_path_mask & (intrinsic > 0.0)
 
-        if np.any(itm):
-            x = basis_fn(states, t)[itm]
-            y = continuation_cf[itm]
+        beta: Array | None = None
+        continuation_all: Array | None = None
+        if int(regression_itm.sum()) >= min_regression_paths:
+            basis_all = basis_fn(states, t)
+            x = basis_all[regression_itm]
+            y = continuation_cf[regression_itm]
             beta, *_ = np.linalg.lstsq(x, y, rcond=None)
+            continuation_all = basis_all @ beta
             regression_map[t] = beta
-            continuation = x @ beta
-            exercise_now_local = intrinsic[itm] >= continuation
-            exercise_idx = np.where(itm)[0][exercise_now_local]
+            regression_steps.append(
+                LSMRegressionStep(
+                    time_index=t,
+                    coefficients=beta,
+                    n_regression_paths=int(regression_itm.sum()),
+                    condition_number=float(np.linalg.cond(x)),
+                    continuation_mean=float(np.mean(continuation_all[regression_itm])),
+                    intrinsic_mean=float(np.mean(intrinsic[regression_itm])),
+                )
+            )
+
+        pricing_itm = eligible & pricing_path_mask & (intrinsic > 0.0)
+        if beta is not None and continuation_all is not None and np.any(pricing_itm):
+            exercise_now_local = intrinsic[pricing_itm] >= continuation_all[pricing_itm]
+            exercise_idx = np.where(pricing_itm)[0][exercise_now_local]
             if exercise_idx.size > 0:
                 continuation_cf[exercise_idx] = intrinsic[exercise_idx]
                 alive[exercise_idx] = False
@@ -129,13 +161,6 @@ def fit_lsm(
                         "boundary_mean": float(np.mean(spot)),
                     }
                 )
-            regression_steps.append(
-                LSMRegressionStep(
-                    time_index=t,
-                    coefficients=beta,
-                    n_regression_paths=int(itm.sum()),
-                )
-            )
 
     continuation_cf[alive] *= discount
     discounted = continuation_cf

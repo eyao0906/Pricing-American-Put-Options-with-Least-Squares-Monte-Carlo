@@ -1,0 +1,89 @@
+Longstaff Vanilla Bias Fix Review Log
+====================================
+Date: 2026-04-06
+Project root: C:\Users\Ethan Yao\Downloads\ACTSC971FInal
+Code location reviewed: C:\Users\Ethan Yao\Downloads\ACTSC971FInal\src\LongstaffMethod
+
+Request addressed
+-----------------
+Improve the vanilla American put pricing workflow by diagnosing and reducing the upward LSMC bias relative to the direct American benchmark, then rerun the benchmark and robustness tables. Also save a persistent review log under SupportFiles.
+
+Diagnosis summary
+-----------------
+The main cause of the inflated vanilla LSMC values was the classic same-path Longstaff bias:
+1. Continuation-value regressions were fit on the same path set used for exercise decisions.
+2. The stopping rule was then effectively valued in-sample, which tends to overstate performance.
+3. The effect was especially visible in longer-maturity / higher-volatility cases.
+
+Evidence observed before fix
+----------------------------
+Representative same-path pricing gaps vs implicit FD benchmark:
+- S=40, sigma=0.20, T=1: LSMC 2.577693 vs FD 2.299483, gap +0.278210
+- S=40, sigma=0.20, T=2: LSMC 3.045782 vs FD 2.873374, gap +0.172408
+- S=44, sigma=0.40, T=1: LSMC 4.363259 vs FD 3.924012, gap +0.439246
+- S=40, sigma=0.40, T=2: LSMC 7.823995 vs FD 6.896912, gap +0.927082
+
+Diagnostic fit vs independent evaluation gaps:
+- S=36, sigma=0.20, T=1: about +0.24677
+- S=40, sigma=0.20, T=2: about +0.31540
+- S=44, sigma=0.40, T=1: about +0.24 to +0.25
+- S=40, sigma=0.40, T=2: about +0.83 to +0.84
+
+Code changes made
+-----------------
+1. Updated lsm_engine.py
+   - Added richer regression diagnostics to LSMRegressionStep.
+   - Added optional path-mask arguments and minimum regression-path threshold support.
+   - Preserved reusable generic engine behavior.
+
+2. Updated run_longstaff_vanilla.py
+   - Switched main vanilla benchmark pricing to a two-pass design:
+     a. fit policy on one simulated path set
+     b. evaluate policy on an independent path set
+   - Retained same-path mode explicitly for the in-sample vs out-of-sample diagnostic table.
+   - Added benchmark columns to capture fit/eval separation:
+     - lsmc_fit_price
+     - lsmc_fit_minus_eval
+     - fit_price / eval_price / corresponding stderrs
+     - split_policy / fit_seed / eval_seed
+   - Re-ran benchmark and robustness tables using the improved pricing design.
+
+Post-fix observations
+---------------------
+Representative two-pass benchmark gaps vs implicit FD benchmark:
+- S=40, sigma=0.20, T=1: eval 2.443630 vs FD 2.299483, gap +0.144148
+- S=40, sigma=0.20, T=2: eval 2.727089 vs FD 2.873374, gap -0.146285
+- S=44, sigma=0.40, T=1: eval 4.132121 vs FD 3.924012, gap +0.208108
+- S=40, sigma=0.40, T=2: eval 6.971409 vs FD 6.896912, gap +0.074497
+
+Interpretation
+--------------
+The major upward distortion was indeed coming from in-sample valuation. The two-pass policy valuation materially tightened the benchmark alignment, especially in the high-volatility long-maturity case where the gap shrank from roughly +0.93 to about +0.07.
+
+Remaining caveats
+-----------------
+- The improved design is more honest and more stable, but some cases now undershoot the FD benchmark.
+- That is acceptable as a diagnostic outcome: same-path values were too optimistic, while independent valuation removes much of that optimism.
+- Additional tightening could still be pursued via basis redesign, alternative state scaling, or cross-fitting / multi-fold splitting.
+
+Files regenerated
+-----------------
+- outputs/longstaff_vanilla_benchmark.csv
+- outputs/longstaff_vanilla_in_vs_out_sample.csv
+- outputs/longstaff_vanilla_paths_sensitivity.csv
+- outputs/longstaff_vanilla_timestep_sensitivity.csv
+- outputs/longstaff_vanilla_basis_sensitivity.csv
+- outputs/longstaff_vanilla_seed_sensitivity.csv
+- visuals/longstaff_vanilla_benchmark_comparison.png
+- visuals/longstaff_vanilla_exercise_boundary.png
+- visuals/longstaff_vanilla_paths_sensitivity.png
+- visuals/longstaff_vanilla_basis_sensitivity.png
+
+Reviewer notes for future revision
+---------------------------------
+Potential next improvements if further refinement is wanted:
+1. Cross-fitted LSM (K-fold) instead of single fit/eval split.
+2. Time-step-specific basis tuning.
+3. Basis orthogonalization or QR-based numerics at each step.
+4. Regression clipping / monotonicity constraints near deep ITM regions.
+5. More detailed comparison against binomial benchmark for selected cases.

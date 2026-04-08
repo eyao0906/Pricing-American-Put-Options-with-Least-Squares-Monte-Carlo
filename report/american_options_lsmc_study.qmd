@@ -57,58 +57,63 @@ longstaff_seed_summary['case'] = (
 
 ## Introduction
 
-American option pricing is an optimal stopping problem. Unlike a European claim, an American contract can be exercised before maturity, so valuation requires both a price and an exercise rule. That feature makes the problem mathematically richer and computationally more demanding. Even in the case of a vanilla American put under geometric Brownian motion, the value cannot be reduced to a single terminal expectation without solving a continuation-versus-exercise problem over time.
+American option pricing is fundamentally an optimal stopping problem. Unlike a European claim, an American contract can be exercised prior to maturity, so valuation requires not only a price but also a rule describing when exercise is optimal. This feature makes American-style derivatives substantially more difficult to value than European derivatives. Even in the simple case of a vanilla American put under geometric Brownian motion, valuation cannot be reduced to a single terminal expectation, because the holder must repeatedly compare the payoff from immediate exercise with the value of waiting.
 
-This report studies that problem through two influential papers. Longstaff and Schwartz (2001) provide the main practical algorithm used in the project: least-squares Monte Carlo (LSMC), based on backward induction and continuation-value regression on simulated paths. Tsitsiklis and Van Roy (2001) provide a related but distinct perspective based on approximate dynamic programming and recursive value approximation. The project treats Longstaff--Schwartz as the main empirical pricing method and implements Tsitsiklis--Van Roy as a matched comparator under the same computational testbeds.
+This report studies that problem through two influential simulation-based papers. Longstaff and Schwartz (2001) develop the least-squares Monte Carlo approach, whose key idea is to estimate the conditional expected payoff from continuation by least-squares regression on simulated paths. Their method is motivated by the observation that, at each exercise date, the optimal decision depends on comparing immediate exercise value with the conditional expectation of future discounted cash flows from continuation. By estimating that conditional expectation from cross-sectional path information, the method converts a difficult optimal stopping problem into a sequence of regression problems. 
 
-The empirical study is organized around a shared synthetic benchmark rather than historical equity calibration. The main benchmark is a vanilla American put under risk-neutral geometric Brownian motion (GBM), priced against an implicit finite-difference American benchmark, a Black--Scholes European lower reference, and a CRR tree check. This shared benchmark is then extended in two directions: an Asian-style extension with multiple state variables and a jump-style extension showing how both regression methods behave when the state dynamics change.
+Tsitsiklis and Van Roy (2001) study the same class of American-style pricing problems from the viewpoint of approximate dynamic programming. Their framework starts from the Bellman recursion and emphasizes recursive approximation of the value function over a parameterized function class. In this formulation, the central issue is not only how to estimate continuation values, but also how approximation error propagates backward through time. The paper shows that naive approximation schemes can generate errors that grow rapidly with the horizon, while trajectory-based sampling under the risk-neutral distribution yields a much more stable approximation framework. 
+
+The two papers therefore address the same computational challenge but from different angles. Longstaff--Schwartz is more directly tied to continuation-value regression and practical pathwise stopping-rule construction, whereas Tsitsiklis--Van Roy is more explicitly framed in terms of value iteration, projection, and approximation error control. In the present project, Longstaff--Schwartz is treated as the main practical pricing method, and Tsitsiklis--Van Roy is implemented as a matched comparator under the same computational testbeds. This shared design allows differences in the results to be interpreted as methodological differences rather than differences in case construction. 
+
+The empirical study is organized around a shared synthetic benchmark rather than historical equity calibration. The main benchmark is a vanilla American put under risk-neutral geometric Brownian motion, priced against an implicit finite-difference American benchmark, a Black--Scholes European lower reference, and a CRR tree check. This shared benchmark is then extended in two directions: an Asian-style extension with multiple state variables and a jump-style extension showing how both regression methods behave when the state dynamics change.
 
 The purpose of the project is to study the two papers with implementation evidence, testing, and critical assessment. It is not a claim of exact numerical reproduction of every published table. The emphasis is on understanding the pricing logic, implementing it in a coherent way, and comparing the two approaches under a common design.
 
 ## Problem setup: American option pricing as an optimal stopping problem
 
-Consider an American put with strike $K$ and maturity $T$ written on an underlying process $(S_t)_{0 \le t \le T}$. Under no-arbitrage pricing, the time-zero value under the risk-neutral measure $\mathbb{Q}$ is
+Let $(\Omega,\mathcal{F},\mathbb{Q})$ be a risk-neutral probability space equipped with a filtration $(\mathcal{F}_t)_{0\le t\le T}$ generated by the relevant state variables of the pricing model. For an American put with strike $K$ and maturity $T$ written on an underlying process $(S_t)_{0\le t\le T}$, the holder may choose an admissible stopping time $\tau$ taking values in $[0,T]$. Under no-arbitrage pricing, the time-zero value is
 
 $$
 V_0 = \sup_{\tau \in \mathcal{T}} \mathbb{E}^{\mathbb{Q}}\left[e^{-r\tau}(K-S_\tau)^+\right],
 $$
 
-where $r$ is the continuously compounded risk-free rate and $\mathcal{T}$ is the set of admissible stopping times. The holder selects the exercise time $\tau$ to maximize expected discounted payoff.
+where $r$ is the continuously compounded risk-free rate and $\mathcal{T}$ is the set of stopping times with respect to the filtration. This formulation makes clear that American option valuation is not only a pricing problem but also a decision problem: one must determine the exercise rule that maximizes expected discounted payoff. This is the standard optimal stopping representation underlying both Longstaff--Schwartz and Tsitsiklis--Van Roy. 
 
-In discrete time, with exercise dates $0=t_0<t_1<\cdots<t_N=T$, the Bellman recursion is
+In practice, numerical valuation is usually carried out in discrete time. If the allowable exercise dates are
+$$
+0=t_0<t_1<\cdots<t_N=T,
+$$
+then the American option is approximated by a Bermudan option that may only be exercised on this grid. This restriction slightly lowers the value relative to the continuous-time contract, but under standard regularity conditions the approximation improves as the exercise mesh becomes finer. Tsitsiklis and Van Roy explicitly adopt this discrete-time setup in order to formulate the pricing problem through dynamic programming, and Longstaff--Schwartz likewise implement their simulation method on a finite exercise grid. 
 
+Under this discrete-time formulation, the Bellman recursion is
 $$
 V_i(S_{t_i}) = \max\left\{ h(S_{t_i}),\; C_i(S_{t_i}) \right\},
 $$
-
 where
-
 $$
 h(S_{t_i})=(K-S_{t_i})^+
 $$
-
 is the intrinsic value and
-
 $$
 C_i(S_{t_i}) = \mathbb{E}^{\mathbb{Q}}\left[e^{-r\Delta t}V_{i+1}(S_{t_{i+1}})\mid S_{t_i}\right]
 $$
+is the continuation value. The continuation term is the conditional expected discounted value of waiting one more step and then acting optimally thereafter. American pricing therefore requires repeated comparison of immediate exercise and continuation value at every exercise date.
 
-is the continuation value. American pricing therefore requires repeated comparison of immediate exercise and the value of waiting.
+This recursion also explains why American option pricing is much harder than European pricing. For a European option, valuation reduces to one terminal expectation under the risk-neutral measure. For an American option, the continuation value itself is an unknown conditional expectation embedded inside a backward recursion with a max operator. In low-dimensional settings, this recursion can be handled directly by trees or finite-difference methods. In higher-dimensional settings, however, explicit state-space discretization becomes computationally prohibitive. The contribution of both Longstaff--Schwartz and Tsitsiklis--Van Roy is to replace dense state-space discretization with regression-based approximations built from simulated paths. 
 
-In low-dimensional settings, this recursion can be handled directly by trees or finite differences. The contribution of both Longstaff--Schwartz and Tsitsiklis--Van Roy is to replace dense state-space discretization with regression-based approximations built from simulated paths.
+For the purposes of this report, this setup also clarifies the methodological difference between the two papers. Longstaff--Schwartz approximates the continuation value by regressing discounted realized future cash flows on basis functions of the current state. Tsitsiklis--Van Roy instead frame the problem as approximate value iteration and recursively approximate the value function, or equivalently the continuation component, through projection onto a finite-dimensional approximation space. Both methods begin from the same Bellman logic, but differ in the object being approximated and in the way approximation error is interpreted. 
 
 ## Risk-neutral model and benchmark pricing framework
-The project uses a standard Black--Scholes style GBM environment under the risk-neutral measure:
 
+The project uses a standard Black--Scholes style GBM environment under the risk-neutral measure:
 $$
 dS_t = rS_t\,dt + \sigma S_t\,dW_t^{\mathbb{Q}},
 $$
-
 with constant volatility $\sigma$ and no dividends. In discrete time,
-
 $$
-S_{t+\Delta t} = S_t \exp\left(\left(r-\tfrac12\sigma^2\right)\Delta t + \sigma\sqrt{\Delta t}Z\right), \qquad Z\sim N(0,1).
+S_{t+\Delta t} = S_t \exp\left((r-\frac{1}{2}\sigma^2)\Delta t + \sigma\sqrt{\Delta t}Z\right), \qquad Z\sim N(0,1).
 $$
+This benchmark is chosen for a practical reason. It provides a common one-dimensional testbed under which both Longstaff--Schwartz and Tsitsiklis--Van Roy can be compared against direct American pricing methods. Since the main purpose of the report is methodological comparison rather than market calibration, a shared synthetic benchmark is more useful here than a historical calibration exercise. 
 
 The shared synthetic benchmark uses the following grid:
 
@@ -120,63 +125,66 @@ The shared synthetic benchmark uses the following grid:
 - 50 exercise dates per year,
 - 100,000 simulated paths, generated as 50,000 base paths and 50,000 antithetic paths.
 
+
 This testbed is used for both Longstaff and TVR whenever possible. That common design is important because it allows differences in results to be interpreted as methodological differences rather than differences in case construction.
 
 Three benchmark layers are used in the vanilla study. The Black--Scholes European put is the lower reference,
-
 $$
-P_{\text{Euro}} = Ke^{-rT}N(-d_2)-S_0N(-d_1),
+P^{\text{Euro}} = Ke^{-rT}N(-d_2) - S_0N(-d_1),
 $$
+with the standard definitions of $d_1$ and $d_2$. It is a useful lower bound because, for a non-dividend-paying stock, the American put should not be worth less than the corresponding European put under the same model inputs. However, it is not the direct benchmark for the American claim, because it prices a different contract without early exercise. 
 
-with the standard definitions of $d_1$ and $d_2$. The primary direct American benchmark is an implicit finite-difference solver. A CRR tree is included as an auxiliary check. The finite-difference benchmark is treated as the main direct reference because it solves the same one-dimensional American stopping problem under the same model assumptions.
+The primary direct American benchmark is an implicit finite-difference solver. This is treated as the main benchmark because it solves the same one-dimensional American stopping problem under the same GBM assumptions. A CRR tree is also included as an auxiliary check. This layered benchmark design is consistent with the logic of the vanilla American put example in Longstaff--Schwartz: simulation output should be judged against a direct method that solves the same early-exercise problem, while the European price serves as a lower reference rather than as the benchmark itself. 
+
+It is important to distinguish these project assumptions from the assumptions of the original papers. Longstaff--Schwartz emphasize that the LSM idea is not tied to GBM and can be applied in path-dependent, multifactor, and jump settings. Tsitsiklis--Van Roy similarly formulate their method for complex American-style options with possibly high-dimensional state spaces. In this report, GBM is therefore not a restriction imposed by the papers themselves, but a common benchmark environment used to compare the two methods cleanly in the vanilla case before moving to richer extensions. 
 
 ## Longstaff--Schwartz (2001): paper walkthrough and intuition
-Longstaff and Schwartz (2001) address the basic obstacle in simulation-based American pricing: Monte Carlo methods are well suited to terminal expected values, but American claims require continuation values and exercise decisions at intermediate dates. The paper's central idea is to approximate continuation values by regression on simulated paths.
+
+Longstaff and Schwartz (2001) address the main difficulty in simulation-based American pricing: simulation is well suited to terminal expected values, but American-style claims require continuation values and exercise decisions at intermediate dates. Their key idea is that the conditional expected payoff from continuation can be estimated from the cross-sectional information in simulated paths by least-squares regression. 
 
 At an exercise date $t_i$, the continuation value is approximated by
-
 $$
 C_i(S_{t_i}) \approx \hat{C}_i(S_{t_i}) = \sum_{j=0}^{m}\beta_{i,j}\psi_j(S_{t_i}),
 $$
+where $\{\psi_j\}$ is a chosen basis. In the vanilla American put example, Longstaff--Schwartz use a constant together with low-order weighted Laguerre polynomials, motivated by the fact that the continuation value is a conditional expectation and can be approximated by projection onto a finite-dimensional basis. 
 
-where $\{\psi_j\}$ is a chosen basis. In the present implementation, the vanilla benchmark uses the constant and the first three weighted Laguerre polynomials in normalized spot.
+The algorithm proceeds backward. First, simulate risk-neutral paths and initialize the option payoff at maturity. Then, moving backward through the exercise dates, regress discounted realized future cash flows on basis functions of the current state. This fitted value is used as an estimate of the continuation value. The holder exercises whenever the intrinsic value exceeds the fitted continuation value, and otherwise continues. The important point is that the regression target is not the next-step intrinsic payoff, but the discounted realized cash flow generated by continuing and then following the estimated stopping policy thereafter. 
 
-The algorithm proceeds by simulating risk-neutral paths, initializing terminal payoffs at maturity, and working backward through the exercise dates. At each date, the regression is carried out on paths that are currently in the money, since those are the states where the exercise decision is relevant. Discounted realized future cash flows are regressed on basis functions of the current state, and exercise is chosen whenever intrinsic value exceeds the fitted continuation value.
+A practical feature of the method is that the regression is carried out only on in-the-money paths. The reason is that the exercise decision is economically relevant only in that region. Longstaff and Schwartz argue that restricting the regression to in-the-money states improves efficiency because the conditional expectation does not need to be approximated accurately in regions where immediate exercise is impossible anyway. 
 
-That distinction is central. Longstaff regresses realized future cash flows and uses the fitted continuation function to construct a stopping rule. In the revised implementation, the stopping rule is then evaluated on an independent path set rather than only on the fitting sample. This two-pass policy-evaluation step was added because same-path fitting and same-path valuation produced optimistic results in the original benchmark runs.
+A useful theoretical interpretation of the method is that any fixed finite basis and exercise design produces a particular stopping rule. The resulting price is therefore the value of that rule rather than the unknown true American value itself. This helps explain why the method is often described as having a lower-bound logic asymptotically, but also why finite-sample implementations need not lie below every numerical benchmark in every case. Later convergence results, such as Stentoft (2004), make clear that consistency of the LSM estimator requires attention not only to the number of simulated paths but also to the richness of the approximation space. 
 
 ## Tsitsiklis--Van Roy (2001): paper walkthrough and intuition
-Tsitsiklis and Van Roy (2001) study American-style option pricing from the viewpoint of approximate dynamic programming. Their emphasis is not primarily on regressing future realized cash flows path by path, but on recursively approximating the value function itself.
 
-In discrete time, the Bellman recursion is
+Tsitsiklis and Van Roy (2001) study American-style option pricing as a finite-horizon optimal stopping problem solved by approximate dynamic programming. Their starting point is the discrete-time Bellman recursion, but instead of computing the value function exactly over the full state space, they work within a finitely parameterized approximation class and update the approximation recursively backward through time. This makes the method suitable for complex American-style claims with possibly high-dimensional state spaces. 
 
+In their framework, the continuation or value function is approximated by projection onto a finite-dimensional basis,
 $$
-V_i(s)=\max\left\{h(s),\; \mathbb{E}^{\mathbb{Q}}\left[e^{-r\Delta t}V_{i+1}(S_{t_{i+1}})\mid S_{t_i}=s\right]\right\}.
+\hat{C}_i(s) = \sum_{j=0}^{m}\alpha_{i,j}\phi_j(s),
 $$
-
-The continuation term is approximated by projection onto a finite-dimensional basis,
-
+and the approximate value recursion is written as
 $$
-\hat{C}_i(s)=\sum_{j=0}^{m}\alpha_{i,j}\phi_j(s),
+\hat{V}_i(s) = \max\{h(s), \hat{C}_i(s)\}.
 $$
+The key difference from Longstaff--Schwartz is that the regression target is based on discounted next-step estimated values, not discounted realized future cash flows. In this sense, TVR is closer to fitted value iteration than to direct continuation-cash-flow regression. 
 
-and the value estimate is updated through
+A central concept in the paper is the use of representative states. The regressions are carried out not over the entire state space, but at a finite sample of states, and the resulting fitted function is used to approximate values elsewhere. The paper shows that this design choice matters greatly. If representative states are chosen arbitrarily, approximation error can grow rapidly with the time horizon. By contrast, if they are generated by simulating the state process under the risk-neutral distribution, the approximation error remains controlled. This result is one of the main theoretical motivations for trajectory-based regression methods. 
 
-$$
-\hat{V}_i(s)=\max\{h(s),\hat{C}_i(s)\}.
-$$
+Another important feature of the paper is its explicit emphasis on approximation error. The relevant question is not whether one has chosen a particular named polynomial family, but whether the selected approximation space can represent the true continuation structure well over the region of the state space actually visited by simulated paths. This is why the paper frames the method in terms of projection error and recursive error propagation rather than only in terms of regression fit at a single date. 
 
-This viewpoint makes the role of recursive approximation explicit. Instead of regressing realized future cash flows directly, the method uses discounted next-step estimated values as regression targets. The representative states used in the regressions are the simulated states generated under the pricing model, so the quality of the approximation depends on both the basis specification and the distribution of those simulated states.
-
-In the present project, TVR is implemented as a fitted value iteration under the same testbeds used for Longstaff. After the recursive value approximation is fitted, the implied stopping policy is evaluated on a fresh out-of-sample path set. This policy-evaluation step is necessary if the TVR output is to be compared fairly with Longstaff under a shared benchmark design.
+In the present project, TVR is implemented under the same shared testbeds as Longstaff--Schwartz so that differences in the results can be interpreted as differences in recursion logic rather than differences in model environment. The practical output is again a stopping policy, but the conceptual route is different: Longstaff estimates continuation from realized future payoffs, whereas TVR recursively approximates the value function itself. 
 
 ## Conceptual Comparison of the Two Papers
-The two papers solve related problems, but they do so in different ways. Longstaff-Schwartz estimates continuation values by regressing discounted realized future cash flows on the current state and then infers a stopping rule from that comparison. Tsitsiklis--Van Roy uses discounted next-step estimated values and treats the problem more explicitly as approximate value iteration.
 
-That distinction matters for interpretation. In this project, Longstaff-Schwartz serves as the main empirical anchor because it provides the primary practical pricing procedure. TVR serves as a matched comparator under the same computational testbeds. The comparison is therefore methodological: both methods face the same simulated states, payoff structures, exercise grids, and benchmark references, but differ in recursion target and approximation logic.
+The two papers solve closely related American-style pricing problems, but they do so through different approximation targets. Longstaff--Schwartz estimate continuation values by regressing discounted realized future cash flows on functions of the current state and then infer a stopping rule from that comparison. Tsitsiklis--Van Roy instead use discounted next-step estimated values and frame the problem more explicitly as approximate dynamic programming. In both cases, the underlying Bellman logic is the same, but the recursion target is different. 
+
+This distinction matters for interpretation. In Longstaff--Schwartz, the regression is tied directly to the realized payoff from continuation along simulated paths, so the method is naturally read as a continuation-regression approach. In Tsitsiklis--Van Roy, the emphasis is on recursively approximating the value function over a finite-dimensional approximation space, so the method is more naturally read as fitted value iteration. The two approaches therefore differ not only computationally, but also conceptually in how they describe the role of regression in the stopping problem. 
+
+In this project, Longstaff--Schwartz serves as the main empirical pricing procedure and Tsitsiklis--Van Roy serves as a matched comparator under the same benchmark design. The comparison is therefore methodological: both methods face the same simulated states, exercise grids, payoff structures, and benchmark references, but differ in recursion logic and approximation target. 
 
 ### Basis Functions and Approximation Viewpoint
-Both papers require approximating a continuation value function at each backward time step using a finite set of basis functions. The choice of basis is therefore a central implementation decision: it affects approximation quality, numerical stability, and the behavior of the resulting stopping rule. The two papers treat this issue differently—Longstaff--Schwartz more empirically and Tsitsiklis--Van Roy more theoretically—and together they provide a useful framework for interpreting the numerical design choices in this project.
+
+Both papers require approximation of a continuation-related function at each backward time step using a finite set of basis functions. Basis choice is therefore a substantive modeling decision rather than a cosmetic implementation detail. It affects approximation quality, numerical stability, and the behavior of the implied stopping rule. The two papers, however, motivate the role of basis functions somewhat differently. Longstaff--Schwartz present basis functions mainly as a practical way to estimate continuation values accurately enough for exercise decisions, whereas Tsitsiklis--Van Roy place more emphasis on projection error and on how well the chosen approximation space represents the relevant value function over the state distribution induced by the model. 
 
 #### Basis Functions in Longstaff--Schwartz (2001)
 In the Longstaff--Schwartz framework, basis functions are used to approximate the conditional expectation of continuation value at each exercise date. For the vanilla American put, the paper uses a constant together with the first three weighted Laguerre polynomials in normalized spot, where
@@ -204,6 +212,7 @@ For higher-dimensional examples, Longstaff and Schwartz expand the basis to refl
 A useful empirical point in Longstaff--Schwartz is that pricing accuracy in simple settings is often not very sensitive to the precise orthogonal family used, provided the basis is rich enough to approximate the continuation function reasonably well. The paper reports that Laguerre polynomials, ordinary powers, Hermite polynomials, and trigonometric functions can all give very similar vanilla-put prices. The practical lesson is not that basis choice is irrelevant, but that in smooth low-dimensional problems several reasonable low-order bases may work similarly well. At the same time, the paper warns that poor scaling and near-singular regression matrices can still create numerical instability, which is why normalizing the state variable by strike is a sensible implementation choice.
 
 #### Basis Functions in Tsitsiklis--Van Roy (2001)
+
 In the Tsitsiklis--Van Roy framework, basis functions play a closely related but more explicitly theoretical role. Rather than directly approximating realized continuation cash flows, the method parameterizes the continuation or value function as a linear combination of basis elements,
 $$
 \tilde{Q}(x, r) = \sum_{k=1}^{K} r_k \phi_k(x) = (\Phi r)(x),

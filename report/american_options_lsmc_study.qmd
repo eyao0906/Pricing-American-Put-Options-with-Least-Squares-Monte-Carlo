@@ -366,7 +366,6 @@ Putting these pieces together, the workflow is as follows. First, choose the sha
 
 Here is the revised section with the rendering issues resolved. The "Missing $" error was caused by the unescaped underscores in the jump model names (`no_jump_gbm` and `jump_to_ruin`), which LaTeX interprets as math-mode subscripts. I have escaped them as `\_` and adjusted the spot, volatility, and maturity columns to remove the trailing zeros as requested.
 
------
 
 ## Results
 ### Shared Vanilla Benchmark
@@ -406,7 +405,11 @@ spot & sigma & maturity & American Put FD & American Put LSMC & LSMCE SE & Fit-E
 \label{tab:vanilla-pricing}
 \end{table}
 ```
-Table \ref{tab:vanilla-pricing} shows that the revised Longstaff benchmark produces American put values of the correct order of magnitude across the full parameter grid. The reported two-pass values are generally closer to the finite-difference benchmark than the original same-path values, but the gap does not disappear uniformly. In some cases the method remains above the benchmark, while in others it falls below it. The column recording the fit-versus-evaluation gap is particularly informative because it quantifies the effect of same-path optimism in the original implementation.
+We begin by replicating the vanilla American put benchmark in Longstaff and Schwartz (2001, pp. 14–16). In particular, we use the same strike, spot, volatility, and maturity grid, together with weighted Laguerre basis functions and in-the-money regression. The main difference is in the benchmark construction. Our finite-difference benchmark is evaluated on the same exercise grid as the Monte Carlo problem, with 50 exercise dates per year, so that the FD and LSMC results are compared under the same numerical exercise design. This matched-grid choice improves comparability across methods, while differing from the paper’s much finer finite-difference reference.
+
+Table \ref{tab:vanilla-pricing} indicates that the Longstaff implementation performs reasonably well as a pricing method across the full parameter grid. The estimates display the correct economic patterns: American put values decrease as spot increases, and they generally increase with volatility and maturity. Relative to the finite-difference benchmark, the LSMC prices are of the right magnitude in all cases, but the pricing error is not uniform across scenarios. The column \textit{LSMC Premium - FD Premium} can be read directly as the gap between the LSMC and FD prices, so positive values indicate overpricing by LSMC and negative values indicate underpricing. This shows that the method does not produce a systematic one-sided bias; instead, its approximation error varies with the parameter setting. The \textit{LSMCE SE} column shows that Monte Carlo sampling uncertainty is fairly small, so the remaining discrepancies are more likely driven by continuation-value approximation and exercise-policy estimation than by simulation noise alone. The \textit{Fit-Eval} column is particularly informative because it measures the extent to which same-path fitting would overstate performance; the consistently positive values confirm that an independent evaluation pass is important and that part of the original in-sample performance was optimistic. 
+
+Overall, the vanilla option pricing results suggest that Longstaff–Schwartz gives stable, economically sensible, and practically useful prices for the vanilla American put benchmark, while also showing that its accuracy depends on the quality of the regression-based continuation approximation in each region of the state space.
 
 ```{=latex}
 \begin{table}[H]
@@ -422,21 +425,21 @@ Spot & Sigma & Mat. & American FD & TVR (IS) & TVR (OOS) & TVR SE & TVR - FD & T
 40.0 & 0.2 & 1 & 2.299500 & 2.286400 & 2.278300 & 0.009400 & -0.021100 & -0.165300 \\
 42.0 & 0.2 & 1 & 1.604600 & 1.599900 & 1.595700 & 0.008200 & -0.008900 & -0.149800 \\
 44.0 & 0.2 & 1 & 1.099800 & 1.096600 & 1.091200 & 0.007000 & -0.008600 & -0.103300 \\
-36.0 & 0.2 & 1 & 4.828000 & 4.696200 & 4.706500 & 0.013500 & -0.121500 & 0.549500 \\
-38.0 & 0.2 & 1 & 3.732800 & 3.660400 & 3.659800 & 0.012700 & -0.073000 & 0.244400 \\
-40.0 & 0.2 & 1 & 2.873400 & 2.824000 & 2.828500 & 0.011800 & -0.044900 & 0.101400 \\
-42.0 & 0.2 & 1 & 2.202400 & 2.158200 & 2.158200 & 0.010700 & -0.044200 & 0.019600 \\
-44.0 & 0.2 & 1 & 1.681000 & 1.636800 & 1.637800 & 0.009700 & -0.043200 & -0.018300 \\
+36.0 & 0.2 & 2 & 4.828000 & 4.696200 & 4.706500 & 0.013500 & -0.121500 & 0.549500 \\
+38.0 & 0.2 & 2 & 3.732800 & 3.660400 & 3.659800 & 0.012700 & -0.073000 & 0.244400 \\
+40.0 & 0.2 & 2 & 2.873400 & 2.824000 & 2.828500 & 0.011800 & -0.044900 & 0.101400 \\
+42.0 & 0.2 & 2 & 2.202400 & 2.158200 & 2.158200 & 0.010700 & -0.044200 & 0.019600 \\
+44.0 & 0.2 & 2 & 1.681000 & 1.636800 & 1.637800 & 0.009700 & -0.043200 & -0.018300 \\
 36.0 & 0.4 & 1 & 7.076000 & 6.901500 & 6.900900 & 0.021600 & -0.175100 & -0.319000 \\
 38.0 & 0.4 & 1 & 6.121600 & 5.923700 & 5.922300 & 0.021000 & -0.199300 & -0.445800 \\
 40.0 & 0.4 & 1 & 5.286100 & 5.131800 & 5.126800 & 0.020000 & -0.159300 & -0.361100 \\
 42.0 & 0.4 & 1 & 4.557600 & 4.437000 & 4.436600 & 0.018900 & -0.121000 & -0.347200 \\
 44.0 & 0.4 & 1 & 3.924000 & 3.835400 & 3.838000 & 0.017800 & -0.086000 & -0.294100 \\
-36.0 & 0.4 & 1 & 8.486800 & 8.414600 & 8.430000 & 0.024700 & -0.056800 & 0.079000 \\
-38.0 & 0.4 & 1 & 7.647800 & 7.597900 & 7.612800 & 0.024200 & -0.035000 & -0.040000 \\
-40.0 & 0.4 & 1 & 6.896900 & 6.859700 & 6.859100 & 0.023600 & -0.037800 & -0.112300 \\
-42.0 & 0.4 & 1 & 6.224600 & 6.200100 & 6.197200 & 0.023000 & -0.027300 & -0.058200 \\
-44.0 & 0.4 & 1 & 5.621900 & 5.599100 & 5.595400 & 0.022300 & -0.026500 & -0.071100 \\
+36.0 & 0.4 & 2 & 8.486800 & 8.414600 & 8.430000 & 0.024700 & -0.056800 & 0.079000 \\
+38.0 & 0.4 & 2 & 7.647800 & 7.597900 & 7.612800 & 0.024200 & -0.035000 & -0.040000 \\
+40.0 & 0.4 & 2 & 6.896900 & 6.859700 & 6.859100 & 0.023600 & -0.037800 & -0.112300 \\
+42.0 & 0.4 & 2 & 6.224600 & 6.200100 & 6.197200 & 0.023000 & -0.027300 & -0.058200 \\
+44.0 & 0.4 & 2 & 5.621900 & 5.599100 & 5.595400 & 0.022300 & -0.026500 & -0.071100 \\
 \bottomrule
 \end{tabular}%
 }
@@ -445,7 +448,9 @@ Spot & Sigma & Mat. & American FD & TVR (IS) & TVR (OOS) & TVR SE & TVR - FD & T
 \end{table}
 ```
 
-Table \ref{tab:tvr-vanilla} places TVR under the same benchmark conditions. The out-of-sample TVR values are generally close to the finite-difference price and are often slightly below it. This is a useful result because it shows that the revised TVR implementation is no longer behaving like the older loose prototype that materially overstated vanilla prices. The final comparison is therefore between two benchmarked regression procedures rather than between one benchmarked method and one poorly aligned comparator.
+Table \ref{tab:tvr-vanilla} puts the TVR method under the same synthetic vanilla benchmark and shows a noticeably different error pattern from the Longstaff results. The out-of-sample TVR prices are generally close to the finite-difference benchmark and are slightly below it in almost every case, so the method behaves as a mildly conservative pricing rule rather than an unstable one. The gap between \textit{TVR (IS)} and \textit{TVR (OOS)} is very small throughout the grid, which suggests that the fitted TVR policy is comparatively stable out of sample and exhibits much less same-path optimism than the Longstaff implementation. Relative to the Longstaff table, this is the key contrast: Longstaff showed larger fit-versus-evaluation gaps and pricing errors that changed sign across cases, whereas TVR is more stable in validation but tends to underprice the finite-difference benchmark in a more systematic way. The weakness of TVR in this benchmark is therefore not overstatement, but persistent downward bias in the fitted value approximation, especially in the higher-volatility one-year cases. This result is consistent with the Tsitsiklis and Van Roy paper’s emphasis that when representative states are generated from simulated risk-neutral trajectories, the “approximation error remains bounded,” so the main issue in practice becomes the quality of the chosen finite-dimensional approximation rather than gross instability of the recursion itself.
+
+Overall, the table suggests that TVR is the more validation-stable of the two regression procedures in the shared vanilla benchmark, while Longstaff is the less uniform but sometimes less systematically biased method.
 
 ![Vanilla benchmark comparison: Longstaff LSMC versus finite-difference benchmark.](../visuals/longstaff_vanilla_benchmark_comparison.png){#fig-vanilla-benchmark fig-pos='H'}
 
@@ -460,15 +465,7 @@ Table \ref{tab:tvr-vanilla} places TVR under the same benchmark conditions. The 
 ### Shared Exercise-policy Interpretation
 ![Empirical exercise-boundary summary: Longstaff vanilla benchmark.](../visuals/longstaff_vanilla_exercise_boundary.png){#fig-vanilla-boundary fig-pos='H'}
 
-@fig-vanilla-boundary summarizes exercise behavior for representative Longstaff vanilla cases. It should not be read as an exact free boundary. Rather, it is an empirical summary of states at which exercise occurs on simulated paths. The figure is still useful because it shows where the estimated stopping rule becomes active and how that region shifts across maturity and volatility settings.
-
-![Jump-style boundary comparison: Longstaff.](../visuals/longstaff_jump_boundary_comparison.png){#fig-longstaff-jump-boundary fig-pos='H'}
-
-The Longstaff jump-style boundary figure extends the same idea to the jump-to-ruin setting. Once downward jump risk is introduced, exercise decisions occur under very different state dynamics. The figure should again be read as a summary of simulated exercise behavior rather than as a structural boundary, but it makes the change in stopping behavior visible.
-
-![Jump-style boundary comparison: TVR.](../visuals/tvr_jump_boundary_comparison.png){#fig-tvr-jump-boundary fig-pos='H'}
-
-@fig-tvr-jump-boundary provides the analogous TVR boundary summary. The qualitative pattern is similar: exercise tends to occur in lower stock-price regions, and the jump case alters the timing and location of exercise. The key methodological point is that both engines generate interpretable stopping behavior under the same changed dynamics.
+@fig-vanilla-boundary provides a qualitative view of the exercise policy implied by the Longstaff–Schwartz regression in representative vanilla cases. Each point is the mean spot level among paths that exercise at that date, so the figure is an empirical summary of where exercise occurs in the simulated state space. It shows that exercise is concentrated in economically plausible in-the-money regions and that the location of exercised states shifts with volatility and maturity. In particular, cases with higher continuation value tend to exhibit exercise only at lower spot levels, which is consistent with the option holder waiting longer before giving up future optionality. The figure therefore complements the pricing tables by illustrating how the fitted stopping rule behaves across the parameter grid, even though precise boundary analysis should be based on the continuation-value regression itself rather than on exercised-path averages.
 
 \FloatBarrier
 
@@ -740,7 +737,7 @@ S=44.0, σ=0.4, T=1 & 4.150800 & 0.027300 & 3.924000 & 0.226800 \\
 
 Table \ref{tab:lsm-seed-runs} and Table \ref{tab:lsm-seed-summary} separate the repeated-seed output into seed-level runs and case-level summaries. This avoids mixing literal summary rows into the same seed column as if they were additional replications. The seed-level table shows the dispersion across runs, while the summary table reports the mean LSM price, the standard deviation across runs, and the average bias relative to the finite-difference benchmark. Together, they make clear that Monte Carlo variation remains present even after the larger workflow revisions.
 
-\\FloatBarrier
+\FloatBarrier
 
 ### Shared Asian-style Extension
 
@@ -817,6 +814,10 @@ jump\_to\_ruin & 40.0 & 0.2 & 0.060000 & 1 & 0.400000 & 14.945900 & 0.055600 & 1
 
 Table \ref{tab:lsm-jump} shows the Longstaff jump-style extension. Once jump-to-ruin risk is introduced, both American and European put values rise sharply relative to the no-jump case because the stock can collapse to zero before maturity. The early-exercise premium remains positive, but its scale differs from the vanilla benchmark because the underlying risk environment has changed.
 
+![Jump-style boundary comparison: Longstaff.](../visuals/longstaff_jump_boundary_comparison.png){#fig-longstaff-jump-boundary fig-pos='H'}
+
+The Longstaff jump-style boundary figure extends the same idea to the jump-to-ruin setting. Once downward jump risk is introduced, exercise decisions occur under very different state dynamics. The figure should again be read as a summary of simulated exercise behavior rather than as a structural boundary, but it makes the change in stopping behavior visible.
+
 ```{=latex}
 \begin{table}[H]
 \centering
@@ -836,7 +837,11 @@ jump\_to\_ruin & 40.0 & 0.2 & 0.060000 & 1 & 0.400000 & 14.141700 & 14.012900 & 
 \end{table}
 ```
 
-Table \ref{tab:tvr-jump} shows the same qualitative effect under TVR. The out-of-sample jump-to-ruin value is far above the no-jump value, and the early-exercise premium remains positive. The two methods therefore agree on the broad economic effect of introducing catastrophic downward jump risk, even though their recursive approximations differ. The boundary figures in @fig-longstaff-jump-boundary and @fig-tvr-jump-boundary support the same reading visually.In each case, the pricing workflow remains intact while only the simulator changes. This is the main point of the jump-style study: it demonstrates modularity with respect to the state dynamics. 
+Table \ref{tab:tvr-jump} shows the same qualitative effect under TVR. The out-of-sample jump-to-ruin value is far above the no-jump value, and the early-exercise premium remains positive. The two methods therefore agree on the broad economic effect of introducing catastrophic downward jump risk, even though their recursive approximations differ. The boundary figures in @fig-longstaff-jump-boundary and @fig-tvr-jump-boundary support the same reading visually.In each case, the pricing workflow remains intact while only the simulator changes. This is the main point of the jump-style study: it demonstrates modularity with respect to the state dynamics.
+
+![Jump-style boundary comparison: TVR.](../visuals/tvr_jump_boundary_comparison.png){#fig-tvr-jump-boundary fig-pos='H'}
+
+@fig-tvr-jump-boundary provides the analogous TVR boundary summary. The qualitative pattern is similar: exercise tends to occur in lower stock-price regions, and the jump case alters the timing and location of exercise. The key methodological point is that both engines generate interpretable stopping behavior under the same changed dynamics.
 
 \FloatBarrier
 

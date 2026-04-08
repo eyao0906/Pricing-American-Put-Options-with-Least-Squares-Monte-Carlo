@@ -342,17 +342,43 @@ Putting these pieces together, the workflow is as follows. First, choose the sha
 
 ## Results
 ### Shared Vanilla Benchmark
-```{python}
-#| label: tbl-lsm-vanilla
-#| tbl-cap: "Longstaff--Schwartz vanilla benchmark against the finite-difference American benchmark."
-#| tbl-pos: H
-longstaff_vanilla[[
-    'spot','sigma','maturity','american_put_fd','american_put_lsmc',
-    'lsmc_stderr','lsmc_fit_minus_eval','lsmc_premium_minus_fd_premium'
-]].round(4)
+```{=latex}
+\begin{table}[htbp]
+\centering
+\small
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{rrrrrrrr}
+\toprule
+spot & sigma & maturity & American Put FD & American Put LSMC & LSMCE SE & Fit-Eval & LSMC Premium - FD Premium \\
+\midrule
+36.0 & 0.2 & 1 & 4.463500 & 4.205800 & 0.012700 & 0.246600 & -0.257700 \\
+38.0 & 0.2 & 1 & 3.235000 & 3.266800 & 0.011200 & 0.184000 & 0.031800 \\
+40.0 & 0.2 & 1 & 2.299500 & 2.443600 & 0.009900 & 0.134100 & 0.144100 \\
+42.0 & 0.2 & 1 & 1.604600 & 1.745600 & 0.008500 & 0.097800 & 0.140900 \\
+44.0 & 0.2 & 1 & 1.099800 & 1.194600 & 0.007100 & 0.067000 & 0.094700 \\
+36.0 & 0.2 & 2 & 4.828000 & 4.157000 & 0.014600 & 0.499500 & -0.671000 \\
+38.0 & 0.2 & 2 & 3.732800 & 3.415500 & 0.013200 & 0.403200 & -0.317400 \\
+40.0& 0.2 & 2 & 2.873400 & 2.727100 & 0.011900 & 0.318700 & -0.146300 \\
+42.0 & 0.2 & 2 & 2.202400 & 2.138600 & 0.010700 & 0.254600 & -0.063900 \\
+44.0 & 0.2 & 2 & 1.681000 & 1.656100 & 0.009600 & 0.199500 & -0.024900 \\
+36.0 & 0.4 & 1 & 7.076000 & 7.219800 & 0.021200 & 0.415600 & 0.143900 \\
+38.0 & 0.4 & 1 & 6.121600 & 6.368100 & 0.020200 & 0.361600 & 0.246500 \\
+40.0 & 0.4 & 1 & 5.286100 & 5.487900 & 0.019200 & 0.305700 & 0.201800 \\
+42.0 & 0.4 & 1 & 4.557600 & 4.783900 & 0.018300 & 0.269900 & 0.226200 \\
+44.0 & 0.4 & 1 & 3.924000 & 4.132100 & 0.017200 & 0.231100 & 0.208100 \\
+36.0 & 0.4 & 2 & 8.486800 & 8.351000 & 0.025000 & 1.020800 & -0.135800 \\
+38.0 & 0.4 & 2 & 7.647800 & 7.652800 & 0.024200 & 0.924000 & 0.005000 \\
+40.0 & 0.4 & 2 & 6.896900 & 6.971400 & 0.023500 & 0.852600 & 0.074500 \\
+42.0 & 0.4 & 2 & 6.224600 & 6.255400 & 0.022800 & 0.749500 & 0.030800 \\
+44.0 & 0.4 & 2 & 5.621900 & 5.666500 & 0.022100 & 0.678800 & 0.044600 \\
+\bottomrule
+\end{tabular}%
+}
+\caption{Vanilla American put pricing comparison under different spot, volatility, and maturity settings.}
+\label{tab:vanilla-pricing}
+\end{table}
 ```
-
-@tbl-lsm-vanilla shows that the revised Longstaff benchmark produces American put values of the correct order of magnitude across the full parameter grid. The reported two-pass values are generally closer to the finite-difference benchmark than the original same-path values, but the gap does not disappear uniformly. In some cases the method remains above the benchmark, while in others it falls below it. The column recording the fit-versus-evaluation gap is particularly informative because it quantifies the effect of same-path optimism in the original implementation.
+Table \ref{tab:vanilla-pricing} shows that the revised Longstaff benchmark produces American put values of the correct order of magnitude across the full parameter grid. The reported two-pass values are generally closer to the finite-difference benchmark than the original same-path values, but the gap does not disappear uniformly. In some cases the method remains above the benchmark, while in others it falls below it. The column recording the fit-versus-evaluation gap is particularly informative because it quantifies the effect of same-path optimism in the original implementation.
 
 ```{python}
 #| label: tbl-tvr-vanilla

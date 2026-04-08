@@ -1,0 +1,322 @@
+% ============================================================
+%  Section: Basis Functions and Convergence
+%  For inclusion in ACTSC 971 American Options project report
+%  Covers Longstaff-Schwartz (2001) and Tsitsiklis-Van Roy (2001)
+% ============================================================
+
+\section{Basis Functions and Convergence}
+
+Both papers require approximating a continuation value function at each
+backward time step using a finite set of basis functions. The choice of
+these functions is a critical implementation decision that affects both
+accuracy and numerical stability. The two papers treat this choice
+differently --- one empirically and one theoretically --- and together
+they provide a complete picture of when and why regression-based simulation
+methods work.
+
+% ------------------------------------------------------------
+\subsection{Basis Functions in Longstaff--Schwartz (2001)}
+% ------------------------------------------------------------
+
+In the LSM framework, basis functions are used to approximate the
+conditional expectation function $F(\omega; t_k)$ --- the expected
+discounted payoff from continuing to hold the option at exercise date
+$t_k$. The formal justification is that when this conditional expectation
+belongs to the $L^2$ space of square-integrable functions, that space is a
+Hilbert space with a countable orthonormal basis, so any such function can
+be represented as a linear combination of basis elements \citep{longstaff2001}.
+
+For the vanilla American put, the paper uses a constant plus the first
+three weighted Laguerre polynomials:
+\begin{align}
+    L_0(X) &= e^{-X/2}, \label{eq:L0}\\
+    L_1(X) &= e^{-X/2}(1 - X), \label{eq:L1}\\
+    L_2(X) &= e^{-X/2}\!\left(1 - 2X + \tfrac{X^2}{2}\right), \label{eq:L2}
+\end{align}
+where $X = S_t / K$ is the stock price normalised by the strike. The
+conditional expectation function is then approximated as
+\begin{equation}
+    F(\omega;\, t_{K-1}) \;=\; \sum_{j=0}^{\infty} a_j\, L_j(X),
+    \label{eq:LSM_expansion}
+\end{equation}
+with coefficients $a_j$ estimated by ordinary least squares on the
+in-the-money paths at each exercise date.
+
+For the American--Bermuda--Asian (ABA) option with two state variables
+$(S_t, A_t)$, the basis expands to eight functions: the first two Laguerre
+polynomials in each of $S_t/K$ and $A_t/K$, together with their cross
+products up to third order. For the five-asset maximum option in Section~8
+of the paper, nineteen basis functions are used: a constant, the first five
+Hermite polynomials in the maximum asset value, the values and squares of
+the second through fifth ranked assets, all pairwise products of adjacent
+ranked assets, and the product of all five assets.
+
+A central empirical finding in \citet{longstaff2001} is that basis function
+choice has surprisingly little effect on pricing accuracy. Section~8.3 of
+the paper reports that replacing weighted Laguerre polynomials with simple
+powers $S,\, S^2,\, S^3$, Hermite polynomials, or trigonometric functions
+yields virtually identical results for the vanilla put. The explanation lies
+in the nature of the regression: since LSM focuses on the \emph{fitted
+value} rather than individual coefficients, multicollinearity among basis
+functions does not bias prices, even if it makes individual coefficient
+estimates unstable. The paper does caution that a nearly singular
+cross-moment matrix can cause numerical problems, and recommends normalising
+inputs --- for example dividing all prices by the strike $K$ --- to avoid
+scaling issues.
+
+% ------------------------------------------------------------
+\subsection{Basis Functions in Tsitsiklis--Van Roy (2001)}
+% ------------------------------------------------------------
+
+In the TVR framework, basis functions serve a conceptually similar but
+theoretically more precisely characterised role. Rather than approximating a
+conditional expectation function directly, they parameterise the
+$Q$-function (continuation value) as a linear combination:
+\begin{equation}
+    \tilde{Q}(x,\, r) \;=\; \sum_{k=1}^{K} r(k)\,\phi_k(x)
+    \;=\; (\Phi r)(x),
+    \label{eq:TVR_parameterisation}
+\end{equation}
+where $\phi_1, \ldots, \phi_K$ are fixed basis functions and $r \in
+\mathbb{R}^K$ is the parameter vector estimated by regression at each
+backward step \citep{tsitsiklis2001}.
+
+The theoretical framework is deliberately agnostic about \emph{which}
+basis functions are used. What matters is the quantity
+\begin{equation}
+    \epsilon_n^* \;=\; \min_{r}\,
+    \bigl\|\Phi r - Q_n\bigr\|_{\pi_n}
+    \;=\; \bigl\|\Pi_n Q_n - Q_n\bigr\|_{\pi_n},
+    \label{eq:best_approx_error}
+\end{equation}
+the best approximation error achievable by the chosen basis at time step
+$n$, measured in the norm induced by the trajectory distribution $\pi_n$.
+As established in Theorem~1 of \citet{tsitsiklis2001}, the algorithm's
+total approximation error is bounded in terms of $\epsilon_n^*$ (see
+Section~\ref{sec:convergence} below), so any basis that makes $\epsilon_n^*$
+small will produce a well-behaved algorithm. The LSM paper's empirical
+finding that many different bases give similar results is consistent with
+this: in one dimension, low-order polynomial and orthogonal polynomial
+bases all achieve small $\epsilon^*$ for the smooth continuation value
+functions that arise in standard option pricing problems.
+
+The practical implication of TVR's framework becomes most important in
+higher dimensions. In the ABA option, our LSM implementation uses the
+eight-function Laguerre basis from the paper, while our TVR-style
+comparator uses a simpler six-term polynomial basis
+$[1,\, s,\, s^2,\, a,\, a^2,\, sa]$ where $s = S_t/K$ and $a = A_t/K$.
+In TVR's framework, the polynomial basis has a larger $\epsilon^*$ than
+the Laguerre basis --- it approximates the true continuation function less
+accurately over the relevant state space. As shown in
+Section~\ref{sec:results}, this larger $\epsilon^*$ feeds directly into
+the error recursion, causing approximation errors to accumulate as the
+backward induction proceeds, and producing the systematic overpricing
+observed in the TVR-style comparator results.
+
+% ------------------------------------------------------------
+\subsection{Convergence}
+\label{sec:convergence}
+% ------------------------------------------------------------
+
+The two papers offer fundamentally different types of convergence results,
+reflecting their different goals. LSM provides practical convergence
+guarantees suited to implementation, while TVR provides theoretical error
+bounds that explain \emph{why} trajectory-based regression methods work.
+
+\subsubsection{Convergence in Longstaff--Schwartz (2001)}
+
+LSM convergence is established through two propositions. The first
+addresses the bias of the algorithm and holds even when the option is
+continuously exercisable.
+
+\begin{proposition}[LSM downward bias; \citealp{longstaff2001}]
+\label{prop:LSM_bias}
+For any finite choice of $M$ basis functions, $K$ exercise dates, and
+coefficient vector $\theta \in \mathbb{R}^{M \times (K-1)}$, the
+following inequality holds almost surely:
+\begin{equation}
+    V(X) \;\geq\; \lim_{N \to \infty} \frac{1}{N}
+    \sum_{i=1}^{N} \mathrm{LSM}(\omega_i;\, M, K).
+    \label{eq:LSM_bias}
+\end{equation}
+\end{proposition}
+
+The intuition is straightforward: the LSM algorithm produces a specific
+stopping rule, and the true option value $V(X)$ is the supremum over
+\emph{all} stopping rules. Any particular stopping rule --- including the
+LSM one --- therefore gives a value no greater than the true optimum.
+This result is important practically: LSM prices are conservative lower
+bounds on the true American option value, never overstating it in the
+limit.
+
+The second proposition establishes full convergence for the single
+exercise date case.
+
+\begin{proposition}[LSM convergence; \citealp{longstaff2001}]
+\label{prop:LSM_convergence}
+Assume the option depends on a single state variable $X$ with support
+$(0, \infty)$ following a Markov process, and can be exercised at two
+dates $t_1 < t_2$. If the conditional expectation function $F(\omega; t_1)$
+satisfies
+\[
+    \int_0^\infty e^{-X} F^2(\omega;\, t_1)\, dX < \infty
+    \qquad \text{and} \qquad
+    \int_0^\infty e^{-X} F_X^2(\omega;\, t_1)\, dX < \infty,
+\]
+then for any $\varepsilon > 0$ there exists $M < \infty$ such that
+\begin{equation}
+    \lim_{N \to \infty} \Pr\!\left(
+        \left| V(X) - \frac{1}{N} \sum_{i=1}^{N}
+        \mathrm{LSM}(\omega_i;\, M, K) \right| > \varepsilon
+    \right) = 0.
+    \label{eq:LSM_convergence}
+\end{equation}
+\end{proposition}
+
+This result means that by choosing $M$ sufficiently large and letting
+$N \to \infty$, the LSM algorithm converges to any desired degree of
+accuracy. The key is uniform convergence of the fitted conditional
+expectation $\hat{F}^M(\omega; t_1)$ to the true function $F^M(\omega;
+t_1)$, which bounds the maximum pricing error. The paper conjectures that
+analogous results hold in higher-dimensional settings.
+
+\citet{longstaff2001} also validate convergence empirically through an
+out-of-sample diagnostic test (Table~2 of their paper): regression
+coefficients estimated on one set of paths are applied to a fresh set of
+paths with different random seeds. The in-sample and out-of-sample values
+are virtually identical across five seeds, with fewer than 5\% of
+differences exceeding two standard errors, providing strong empirical
+support for the stability of the stopping rule.
+
+\subsubsection{Convergence in Tsitsiklis--Van Roy (2001)}
+
+TVR's convergence analysis is more theoretically detailed, and
+distinguishes between two separate questions: the quality of an idealised
+algorithm with exact expectations and projections, and the convergence of
+the practical sample-based algorithm to the idealised one.
+
+\paragraph{Error blow-up with arbitrary representative states.}
+A key negative result in \citet{tsitsiklis2001} is that naive approximate
+value iteration can produce errors that grow \emph{exponentially} in the
+problem horizon when representative states are chosen arbitrarily. In their
+Section~IV example, an American put is approximated using a single basis
+function $\phi(x) = g(x)$ and a projection measure $\pi$ concentrated at
+a single fixed point $1 - \Delta$. The resulting parameter sequence
+satisfies
+\begin{equation}
+    r_n \;\geq\; \frac{\alpha}{\Delta}(1-p)(1-d)\, r_{n+1},
+    \label{eq:TVR_blowup}
+\end{equation}
+so that when $\Delta < \alpha(1-p)(1-d)$, the parameters grow at an
+exponential rate as $n$ decreases from $N$ to $0$. Since the true option
+value is bounded above by $\alpha^N$, this exponential growth implies that
+the approximation error diverges. The root cause is that the representative
+state $1-\Delta$ is far from where the risk-neutral process actually
+visits, so errors compound at each backward step.
+
+\paragraph{Bounded error under trajectory distributions.}
+The remedy is to choose representative states by simulating forward
+trajectories of the underlying process under the risk-neutral measure.
+Let $\pi_n$ denote the true risk-neutral distribution of $x_n$. The
+critical property that trajectory distributions possess is that the
+transition operator $P$ is non-expansive across them. Specifically, by
+Jensen's inequality and the tower property of conditional expectations:
+\begin{equation}
+    \|PJ\|_{\pi_n}^2
+    \;=\; E\!\left[(PJ)(x_n)^2\right]
+    \;\leq\; E\!\left[E\!\left[J^2(x_{n+1})\,\big|\,x_n\right]\right]
+    \;=\; E\!\left[J^2(x_{n+1})\right]
+    \;=\; \|J\|_{\pi_{n+1}}^2,
+    \label{eq:TVR_nonexpansion}
+\end{equation}
+so $\|PJ\|_{\pi_n} \leq \|J\|_{\pi_{n+1}}$. This property ensures that
+neither $P$ nor the projection operator $\Pi_n$ amplifies errors between
+time steps. The main convergence result follows.
+
+\begin{theorem}[TVR error bound; \citealp{tsitsiklis2001}]
+\label{thm:TVR_theorem1}
+Let $\pi_0, \ldots, \pi_{N-1}$ be the risk-neutral trajectory
+distributions of $x_0, \ldots, x_{N-1}$. Define
+$\tilde{e}_n = \|\tilde{Q}(\cdot, r_n) - Q_n\|_{\pi_n}$ as the
+approximation error of the idealised algorithm, and
+$\epsilon_n^* = \|\Pi_n Q_n - Q_n\|_{\pi_n}$ as the best achievable
+error under the chosen basis. Then:
+\begin{align}
+    \tilde{e}_{N-1} &= \epsilon_{N-1}^*, \label{eq:TVR_init}\\
+    \tilde{e}_n^2   &\leq \alpha^2\, \tilde{e}_{n+1}^2
+                         + \left(\epsilon_n^*\right)^2,
+    \qquad n = 0, 1, \ldots, N-2. \label{eq:TVR_recursion}
+\end{align}
+\end{theorem}
+
+Unrolling the recursion in \eqref{eq:TVR_recursion}, if $\epsilon_n^* \leq
+\epsilon$ uniformly across all time steps, the total error satisfies:
+\begin{equation}
+    \tilde{e}_n \;\leq\; \frac{\epsilon}{\sqrt{2(1 - \alpha^2)}},
+    \label{eq:TVR_uniform_bound}
+\end{equation}
+which is \emph{independent of the time horizon $N$}. This is the central
+theoretical achievement of \citet{tsitsiklis2001}: provided the basis is
+good (small $\epsilon^*$) and states are sampled from the trajectory
+distribution, the approximation error does not grow with the number of
+time steps, in stark contrast to the exponential blow-up demonstrated in
+Section~IV of their paper. Even the looser bound $\tilde{e}_n \leq
+\sqrt{N}\,\epsilon$ grows only polynomially in $N$, not exponentially.
+
+\paragraph{Convergence of the sample-based algorithm.}
+Theorem~1 characterises the idealised algorithm. The practical algorithm
+replaces exact expectations and projections with sample-based estimates
+from simulated trajectories. Theorem~2 of \citet{tsitsiklis2001} addresses
+this gap.
+
+\begin{theorem}[Sample-based convergence; \citealp{tsitsiklis2001}]
+\label{thm:TVR_theorem2}
+As the number of simulated trajectories $m \to \infty$, the sample-based
+parameter vectors $\hat{r}_n(m)$ converge almost surely to the parameter
+vectors $r_n$ of the idealised algorithm:
+\begin{equation}
+    \hat{r}_n(m) \xrightarrow{\,a.s.\,} r_n
+    \qquad \text{as } m \to \infty.
+    \label{eq:TVR_as_convergence}
+\end{equation}
+\end{theorem}
+
+The proof applies the strong law of large numbers to the least squares
+objective: as $m$ grows, sample averages converge almost surely to their
+population counterparts, so the sample regression converges to the
+population regression. This provides the theoretical justification for
+using more simulated paths to improve pricing accuracy.
+
+% ------------------------------------------------------------
+\subsection{Connecting the Two Papers}
+% ------------------------------------------------------------
+
+Reading the convergence results of both papers together yields a complete
+and complementary picture. Proposition~\ref{prop:LSM_bias} from
+\citet{longstaff2001} establishes that LSM prices are conservative ---
+they never overstate the true American option value in the limit.
+Theorem~\ref{thm:TVR_theorem1} from \citet{tsitsiklis2001} establishes
+that when trajectory-based sampling is used, the approximation error
+remains bounded regardless of horizon. Together, these results imply that
+trajectory-based regression methods produce prices that are both bounded
+above by the true option value and bounded below by a quantity that depends
+only on the quality of the chosen basis functions, not on the number of
+time steps.
+
+The empirical results of the present study are consistent with both
+theoretical frameworks. Our LSM prices sit close to but below the
+binomial American benchmark across all strikes, consistent with the
+downward bias property of Proposition~\ref{prop:LSM_bias}. Our TVR-style
+comparator, by contrast, systematically overshoots the benchmark. This
+overshoot is consistent with what Theorem~\ref{thm:TVR_theorem1} predicts
+when $\epsilon^*$ is larger: the polynomial basis used in the TVR
+comparator approximates the continuation function less accurately than the
+Laguerre basis used in LSM (larger $\epsilon^*$), and the all-path
+regression without an ITM filter produces a less focused approximation in
+the region where the exercise decision matters most. The result is that
+approximation errors accumulate more aggressively through the backward
+recursion, producing the systematic overpricing observed across both the
+vanilla put and the ABA option in our experiments. This empirical finding
+directly illustrates the theoretical mechanism described in TVR
+Section~IV: when the effective approximation error $\epsilon^*$ is large,
+errors compound at each backward step rather than remaining bounded.

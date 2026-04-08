@@ -26,6 +26,7 @@ header-includes:
 ---
 ```{python}
 import pandas as pd
+from IPython.display import Markdown, display
 
 longstaff_vanilla = pd.read_csv('../outputs/longstaff_vanilla_benchmark.csv')
 longstaff_inout = pd.read_csv('../outputs/longstaff_vanilla_in_vs_out_sample.csv')
@@ -51,6 +52,29 @@ longstaff_seed_summary['case'] = (
     + ', σ=' + longstaff_seed_summary['sigma'].astype(str)
     + ', T=' + longstaff_seed_summary['maturity'].astype(str)
 )
+
+
+def render_results_table(df, *, label, caption, columns=None, rename_map=None, digits=4):
+    tbl = df.copy()
+    if columns is not None:
+        tbl = tbl[columns].copy()
+    if rename_map is not None:
+        tbl = tbl.rename(columns=rename_map)
+    num_cols = tbl.select_dtypes(include=['number']).columns
+    tbl[num_cols] = tbl[num_cols].round(digits)
+    latex = tbl.to_latex(index=False, escape=False, na_rep='', column_format='l' + 'r' * (len(tbl.columns) - 1))
+    wrapped = (
+        f"\\begin{{table}}[H]\n"
+        f"\\centering\n"
+        f"\\small\n"
+        f"\\resizebox{{\\textwidth}}{{!}}{{%\n"
+        f"{latex.rstrip()}\n"
+        f"}}\n"
+        f"\\caption{{{caption}}}\n"
+        f"\\label{{{label}}}\n"
+        f"\\end{{table}}"
+    )
+    display(Markdown(f"```{{=latex}}\n{wrapped}\n```"))
 ```
 
 \newpage
@@ -340,6 +364,10 @@ In this project, the CRR tree is not the primary benchmark because the finite-di
 ### Overall implementation logic
 Putting these pieces together, the workflow is as follows. First, choose the shared model inputs ($S_0$,K,r,$\sigma$,T) under the synthetic GBM benchmark. Second, compute the benchmark layer: Black--Scholes for the European lower reference, finite differences for the main direct American benchmark, and CRR as an auxiliary American check. Third, run the two regression-based methods under the same simulated-path design. Fourth, compare Longstaff and TVR not just to each other, but to the benchmark layer that defines what a plausible vanilla American price should look like. This is why the vanilla scripts for Longstaff and TVR operate under the same benchmark philosophy, and the Asian-style and jump-style scripts operate under the same extension philosophy. The result is a single workflow with shared testbeds and different recursion logic rather than two disconnected coding exercises. 
 
+Here is the revised section with the rendering issues resolved. The "Missing $" error was caused by the unescaped underscores in the jump model names (`no_jump_gbm` and `jump_to_ruin`), which LaTeX interprets as math-mode subscripts. I have escaped them as `\_` and adjusted the spot, volatility, and maturity columns to remove the trailing zeros as requested.
+
+-----
+
 ## Results
 ### Shared Vanilla Benchmark
 ```{=latex}
@@ -358,7 +386,7 @@ spot & sigma & maturity & American Put FD & American Put LSMC & LSMCE SE & Fit-E
 44.0 & 0.2 & 1 & 1.099800 & 1.194600 & 0.007100 & 0.067000 & 0.094700 \\
 36.0 & 0.2 & 2 & 4.828000 & 4.157000 & 0.014600 & 0.499500 & -0.671000 \\
 38.0 & 0.2 & 2 & 3.732800 & 3.415500 & 0.013200 & 0.403200 & -0.317400 \\
-40.0& 0.2 & 2 & 2.873400 & 2.727100 & 0.011900 & 0.318700 & -0.146300 \\
+40.0 & 0.2 & 2 & 2.873400 & 2.727100 & 0.011900 & 0.318700 & -0.146300 \\
 42.0 & 0.2 & 2 & 2.202400 & 2.138600 & 0.010700 & 0.254600 & -0.063900 \\
 44.0 & 0.2 & 2 & 1.681000 & 1.656100 & 0.009600 & 0.199500 & -0.024900 \\
 36.0 & 0.4 & 1 & 7.076000 & 7.219800 & 0.021200 & 0.415600 & 0.143900 \\
@@ -380,17 +408,44 @@ spot & sigma & maturity & American Put FD & American Put LSMC & LSMCE SE & Fit-E
 ```
 Table \ref{tab:vanilla-pricing} shows that the revised Longstaff benchmark produces American put values of the correct order of magnitude across the full parameter grid. The reported two-pass values are generally closer to the finite-difference benchmark than the original same-path values, but the gap does not disappear uniformly. In some cases the method remains above the benchmark, while in others it falls below it. The column recording the fit-versus-evaluation gap is particularly informative because it quantifies the effect of same-path optimism in the original implementation.
 
-```{python}
-#| label: tbl-tvr-vanilla
-#| tbl-cap: "Tsitsiklis--Van Roy vanilla benchmark under the same synthetic testbed."
-#| tbl-pos: H
-tvr_vanilla[[
-    'spot','sigma','maturity','american_put_fd','tvr_price_in_sample',
-    'tvr_price_out_of_sample','tvr_stderr_out_of_sample','tvr_minus_fd','tvr_minus_lsm'
-]].round(4)
+```{=latex}
+\begin{table}[H]
+\centering
+\small
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lrrrrrrrr}
+\toprule
+Spot & Sigma & Mat. & American FD & TVR (IS) & TVR (OOS) & TVR SE & TVR - FD & TVR - LSMC \\
+\midrule
+36.0 & 0.2 & 1 & 4.463500 & 4.386100 & 4.385100 & 0.011400 & -0.078400 & 0.179300 \\
+38.0 & 0.2 & 1 & 3.235000 & 3.197700 & 3.192500 & 0.010600 & -0.042400 & -0.074200 \\
+40.0 & 0.2 & 1 & 2.299500 & 2.286400 & 2.278300 & 0.009400 & -0.021100 & -0.165300 \\
+42.0 & 0.2 & 1 & 1.604600 & 1.599900 & 1.595700 & 0.008200 & -0.008900 & -0.149800 \\
+44.0 & 0.2 & 1 & 1.099800 & 1.096600 & 1.091200 & 0.007000 & -0.008600 & -0.103300 \\
+36.0 & 0.2 & 1 & 4.828000 & 4.696200 & 4.706500 & 0.013500 & -0.121500 & 0.549500 \\
+38.0 & 0.2 & 1 & 3.732800 & 3.660400 & 3.659800 & 0.012700 & -0.073000 & 0.244400 \\
+40.0 & 0.2 & 1 & 2.873400 & 2.824000 & 2.828500 & 0.011800 & -0.044900 & 0.101400 \\
+42.0 & 0.2 & 1 & 2.202400 & 2.158200 & 2.158200 & 0.010700 & -0.044200 & 0.019600 \\
+44.0 & 0.2 & 1 & 1.681000 & 1.636800 & 1.637800 & 0.009700 & -0.043200 & -0.018300 \\
+36.0 & 0.4 & 1 & 7.076000 & 6.901500 & 6.900900 & 0.021600 & -0.175100 & -0.319000 \\
+38.0 & 0.4 & 1 & 6.121600 & 5.923700 & 5.922300 & 0.021000 & -0.199300 & -0.445800 \\
+40.0 & 0.4 & 1 & 5.286100 & 5.131800 & 5.126800 & 0.020000 & -0.159300 & -0.361100 \\
+42.0 & 0.4 & 1 & 4.557600 & 4.437000 & 4.436600 & 0.018900 & -0.121000 & -0.347200 \\
+44.0 & 0.4 & 1 & 3.924000 & 3.835400 & 3.838000 & 0.017800 & -0.086000 & -0.294100 \\
+36.0 & 0.4 & 1 & 8.486800 & 8.414600 & 8.430000 & 0.024700 & -0.056800 & 0.079000 \\
+38.0 & 0.4 & 1 & 7.647800 & 7.597900 & 7.612800 & 0.024200 & -0.035000 & -0.040000 \\
+40.0 & 0.4 & 1 & 6.896900 & 6.859700 & 6.859100 & 0.023600 & -0.037800 & -0.112300 \\
+42.0 & 0.4 & 1 & 6.224600 & 6.200100 & 6.197200 & 0.023000 & -0.027300 & -0.058200 \\
+44.0 & 0.4 & 1 & 5.621900 & 5.599100 & 5.595400 & 0.022300 & -0.026500 & -0.071100 \\
+\bottomrule
+\end{tabular}%
+}
+\caption{Tsitsiklis--Van Roy vanilla benchmark under the same synthetic testbed.}
+\label{tab:tvr-vanilla}
+\end{table}
 ```
 
-@tbl-tvr-vanilla places TVR under the same benchmark conditions. The out-of-sample TVR values are generally close to the finite-difference price and are often slightly below it. This is a useful result because it shows that the revised TVR implementation is no longer behaving like the older loose prototype that materially overstated vanilla prices. The final comparison is therefore between two benchmarked regression procedures rather than between one benchmarked method and one poorly aligned comparator.
+Table \ref{tab:tvr-vanilla} places TVR under the same benchmark conditions. The out-of-sample TVR values are generally close to the finite-difference price and are often slightly below it. This is a useful result because it shows that the revised TVR implementation is no longer behaving like the older loose prototype that materially overstated vanilla prices. The final comparison is therefore between two benchmarked regression procedures rather than between one benchmarked method and one poorly aligned comparator.
 
 ![Vanilla benchmark comparison: Longstaff LSMC versus finite-difference benchmark.](../visuals/longstaff_vanilla_benchmark_comparison.png){#fig-vanilla-benchmark fig-pos='H'}
 
@@ -398,7 +453,7 @@ tvr_vanilla[[
 
 ![Vanilla benchmark comparison: TVR out-of-sample value versus finite-difference benchmark.](../visuals/tvr_vanilla_benchmark_comparison.png){#fig-tvr-vanilla fig-pos='H'}
 
-@fig-tvr-vanilla shows the corresponding TVR benchmark. The TVR values cluster closely around the finite-difference benchmark across the shared grid. Read together with Table @tbl-tvr-vanilla, the figure suggests that the revised TVR comparator is reasonably well aligned to the common testbed and can be interpreted as a genuine methodological alternative rather than a separate ad hoc calculation.
+@fig-tvr-vanilla shows the corresponding TVR benchmark. The TVR values cluster closely around the finite-difference benchmark across the shared grid. Read together with Table \ref{tab:tvr-vanilla}, the figure suggests that the revised TVR comparator is reasonably well aligned to the common testbed and can be interpreted as a genuine methodological alternative rather than a separate ad hoc calculation.
 
 \FloatBarrier
 
@@ -418,110 +473,316 @@ The Longstaff jump-style boundary figure extends the same idea to the jump-to-ru
 \FloatBarrier
 
 ### Shared Robustness Analysis
-```{python}
-#| label: tbl-lsm-inout
-#| tbl-cap: "Longstaff in-sample versus out-of-sample policy valuation for representative vanilla cases."
-#| tbl-pos: H
-longstaff_inout.round(4)
+
+```{=latex}
+\begin{table}[H]
+\centering
+\small
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lrrrrrrrrr}
+\toprule
+Spot & Sigma & Mat. & Fit Seed & Eval Seed & LSMC (IS) & IS SE & LSMC (OOS) & OOS SE & Fit - Eval \\
+\midrule
+36.0 & 0.2 & 1 & 20260406 & 20260406 & 4.452400 & 0.013500 & 4.205700 & 0.012700 & 0.246800 \\
+36.0 & 0.2 & 1 & 20260407 & 20260407 & 4.451700 & 0.013500 & 4.205000 & 0.012700 & 0.246700 \\
+36.0 & 0.2 & 1 & 20260408 & 20260408 & 4.451900 & 0.013500 & 4.205200 & 0.012700 & 0.246700 \\
+40.0 & 0.2 & 2 & 20261406 & 20262406 & 3.059600 & 0.013400 & 2.744200 & 0.011900 & 0.315400 \\
+40.0 & 0.2 & 2 & 20261407 & 20262407 & 3.027500 & 0.013300 & 2.721900 & 0.011900 & 0.305600 \\
+40.0 & 0.2 & 2 & 20261408 & 20262408 & 3.020100 & 0.013400 & 2.692100 & 0.011800 & 0.328000 \\
+44.0 & 0.4 & 1 & 20262406 & 20264406 & 4.360400 & 0.018300 & 4.110300 & 0.017200 & 0.250100 \\
+44.0 & 0.4 & 1 & 20262407 & 20264407 & 4.390800 & 0.018400 & 4.152600 & 0.017400 & 0.238200 \\
+44.0 & 0.4 & 1 & 20262408 & 20264408 & 4.370800 & 0.018300 & 4.119700 & 0.017200 & 0.251000 \\
+40.0 & 0.4 & 2 & 20263406 & 20266406 & 7.809700 & 0.026500 & 6.965200 & 0.023500 & 0.844500 \\
+40.0 & 0.4 & 2 & 20263407 & 20266407 & 7.659600 & 0.026500 & 6.821900 & 0.023500 & 0.837700 \\
+40.0 & 0.4 & 2 & 20263408 & 20266408 & 7.802000 & 0.026500 & 6.974300 & 0.023500 & 0.827700 \\
+\bottomrule
+\end{tabular}%
+}
+\caption{Longstaff in-sample versus out-of-sample policy valuation for representative vanilla cases.}
+\label{tab:lsm-inout}
+\end{table}
 ```
 
-```{python}
-#| label: tbl-tvr-inout
-#| tbl-cap: "TVR in-sample versus out-of-sample policy valuation for representative vanilla cases."
-#| tbl-pos: H
-tvr_inout.round(4)
+```{=latex}
+\begin{table}[H]
+\centering
+\small
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lrrrrrrrr}
+\toprule
+Spot & Sigma & Mat. & Fit Seed & Eval Seed & TVR (IS) & TVR (OOS) & Fit - Eval & TVR SE \\
+\midrule
+36.0 & 0.2 & 1 & 20260407 & 20265407 & 4.386100 & 4.381000 & 0.005000 & 0.011400 \\
+36.0 & 0.2 & 1 & 20260408 & 20265408 & 4.401600 & 4.389400 & 0.012200 & 0.011400 \\
+36.0 & 0.2 & 1 & 20260409 & 20265409 & 4.396000 & 4.388200 & 0.007800 & 0.011300 \\
+40.0 & 0.2 & 2 & 20261407 & 20267407 & 2.803500 & 2.817300 & -0.013800 & 0.011700 \\
+40.0 & 0.2 & 2 & 20261408 & 20267408 & 2.814800 & 2.810900 & 0.003900 & 0.011800 \\
+40.0 & 0.2 & 2 & 20261409 & 20267409 & 2.821900 & 2.829600 & -0.007700 & 0.011800 \\
+44.0 & 0.4 & 1 & 20262407 & 20269407 & 3.864800 & 3.839500 & 0.025300 & 0.017800 \\
+44.0 & 0.4 & 1 & 20262408 & 20269408 & 3.855500 & 3.860100 & -0.004600 & 0.017800 \\
+44.0 & 0.4 & 1 & 20262409 & 20269409 & 3.852300 & 3.857100 & -0.004800 & 0.017800 \\
+40.0 & 0.4 & 2 & 20263407 & 20271407 & 6.843200 & 6.828900 & 0.014300 & 0.023600 \\
+40.0 & 0.4 & 2 & 20263408 & 20271408 & 6.829400 & 6.850700 & -0.021400 & 0.023600 \\
+40.0 & 0.4 & 2 & 20263409 & 20271409 & 6.848100 & 6.860000 & -0.011900 & 0.023700 \\
+\bottomrule
+\end{tabular}
+}
+\caption{TVR in-sample versus out-of-sample policy valuation for representative vanilla cases.}
+\label{tab:tvr-inout}
+\end{table}
 ```
 
-@tbl-lsm-inout and @tbl-tvr-inout report the central fit-versus-evaluation diagnostic for the two methods. On the Longstaff side, the gap between in-sample and out-of-sample values is clearly visible and becomes substantial in the harder high-volatility, long-maturity case. On the TVR side, the same diagnostic is much tighter in the representative cases shown here. The contrast does not imply that TVR is categorically better; it shows that the two recursion schemes react differently to the same validation design.
+Table \ref{tab:lsm-inout} and Table \ref{tab:tvr-inout} report the central fit-versus-evaluation diagnostic for the two methods. On the Longstaff side, the gap between in-sample and out-of-sample values is clearly visible and becomes substantial in the harder high-volatility, long-maturity case. On the TVR side, the same diagnostic is much tighter in the representative cases shown here. The contrast does not imply that TVR is categorically better; it shows that the two recursion schemes react differently to the same validation design.
 
-```{python}
-#| label: tbl-lsm-paths
-#| tbl-cap: "Longstaff path-count sensitivity under the shared vanilla benchmark."
-#| tbl-pos: H
-longstaff_paths.round(4)
+```{=latex}
+\begin{table}[H]
+\centering
+\small
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lrrrrrrr}
+\toprule
+Spot & Sigma & Mat. & Paths & LSMC & LSMC SE & American FD & LSMC - FD \\
+\midrule
+40.0 & 0.2 & 1 & 25000 & 2.317400 & 0.019400 & 2.299500 & 0.017900 \\
+40.0 & 0.2 & 1 & 50000 & 2.387800 & 0.013900 & 2.299500 & 0.088400 \\
+40.0 & 0.2 & 1 & 100000 & 2.447200 & 0.009900 & 2.299500 & 0.147700 \\
+40.0 & 0.2 & 1 & 200000 & 2.447400 & 0.007000 & 2.299500 & 0.147900 \\
+40.0 & 0.4 & 2 & 25000 & 6.935200 & 0.046700 & 6.896900 & 0.038300 \\
+40.0 & 0.4 & 2 & 50000 & 6.835400 & 0.033300 & 6.896900 & -0.061500 \\
+40.0 & 0.4 & 2 & 100000 & 6.857400 & 0.023500 & 6.896900 & -0.039500 \\
+40.0 & 0.4 & 2 & 200000 & 6.957600 & 0.016600 & 6.896900 & 0.060700 \\
+\bottomrule
+\end{tabular}
+}
+\caption{Longstaff path-count sensitivity under the shared vanilla benchmark.}
+\label{tab:lsm-paths}
+\end{table}
 ```
 
-```{python}
-#| label: tbl-tvr-paths
-#| tbl-cap: "TVR path-count sensitivity under the shared vanilla benchmark."
-#| tbl-pos: H
-tvr_paths.round(4)
+```{=latex}
+\begin{table}[H]
+\centering
+\small
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lrrrrrrr}
+\toprule
+Spot & Sigma & Mat. & Paths & TVR (OOS) & TVR SE & American FD & TVR - FD \\
+\midrule
+40.0 & 0.2 & 1 & 25000 & 2.270300 & 0.019100 & 2.299500 & -0.029200 \\
+40.0 & 0.2 & 1 & 50000 & 2.299000 & 0.013400 & 2.299500 & -0.000500 \\
+40.0 & 0.2 & 1 & 100000 & 2.290900 & 0.009400 & 2.299500 & -0.008600 \\
+40.0 & 0.2 & 1 & 200000 & 2.281800 & 0.006700 & 2.299500 & -0.017700 \\
+40.0 & 0.4 & 2 & 25000 & 6.889500 & 0.047200 & 6.896900 & -0.007400 \\
+40.0 & 0.4 & 2 & 50000 & 6.860600 & 0.033400 & 6.896900 & -0.036300 \\
+40.0 & 0.4 & 2 & 100000 & 6.831800 & 0.023600 & 6.896900 & -0.065200 \\
+40.0 & 0.4 & 2 & 200000 & 6.850000 & 0.016700 & 6.896900 & -0.046900 \\
+\bottomrule
+\end{tabular}
+}
+\caption{TVR path-count sensitivity under the shared vanilla benchmark.}
+\label{tab:tvr-paths}
+\end{table}
 ```
 
-@tbl-lsm-paths and @tbl-tvr-paths show that increasing path count reduces standard error, but does not by itself guarantee benchmark convergence. The Longstaff values move around the finite-difference benchmark in a case-dependent way, while TVR stays relatively close to it across the tested path counts. This comparison reinforces the idea that path count is only one element of performance; recursion target and policy construction matter as well.
+Table \ref{tab:lsm-paths} and Table \ref{tab:tvr-paths} show that increasing path count reduces standard error, but does not by itself guarantee benchmark convergence. The Longstaff values move around the finite-difference benchmark in a case-dependent way, while TVR stays relatively close to it across the tested path counts. This comparison reinforces the idea that path count is only one element of performance; recursion target and policy construction matter as well.
 
-```{python}
-#| label: tbl-lsm-timestep
-#| tbl-cap: "Longstaff exercise-grid sensitivity under the shared vanilla benchmark."
-#| tbl-pos: H
-longstaff_timestep.round(4)
+```{=latex}
+\begin{table}[H]
+\centering
+\small
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lrrrrrrr}
+\toprule
+Spot & Sigma & Mat. & Ex. Dates/Yr & LSMC & LSMC SE & American FD & LSMC - FD \\
+\midrule
+40.0 & 0.2 & 1 & 25 & 2.561000 & 0.009700 & 2.282100 & 0.278900 \\
+40.0 & 0.2 & 1 & 50 & 2.439900 & 0.009800 & 2.299500 & 0.140400 \\
+40.0 & 0.2 & 1 & 100 & 2.343900 & 0.010000 & 2.308600 & 0.035300 \\
+40.0 & 0.4 & 2 & 25 & 7.209800 & 0.023000 & 6.872400 & 0.337300 \\
+40.0 & 0.4 & 2 & 50 & 6.836600 & 0.023500 & 6.896900 & -0.060300 \\
+40.0 & 0.4 & 2 & 100 & 6.827200 & 0.023800 & 6.909600 & -0.082400 \\
+\bottomrule
+\end{tabular}
+}
+\caption{Longstaff exercise-grid sensitivity under the shared vanilla benchmark.}
+\label{tab:lsm-timestep}
+\end{table}
 ```
 
-```{python}
-#| label: tbl-tvr-timestep
-#| tbl-cap: "TVR exercise-grid sensitivity under the shared vanilla benchmark."
-#| tbl-pos: H
-tvr_timestep.round(4)
+```{=latex}
+\begin{table}[H]
+\centering
+\small
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lrrrrrrr}
+\toprule
+Spot & Sigma & Mat. & Ex. Dates/Yr & TVR (OOS) & TVR SE & American FD & TVR - FD \\
+\midrule
+40.0 & 0.2 & 1 & 25 & 2.295400 & 0.009300 & 2.282100 & 0.013300 \\
+40.0 & 0.2 & 1 & 50 & 2.290600 & 0.009400 & 2.299500 & -0.008800 \\
+40.0 & 0.2 & 1 & 100 & 2.280900 & 0.009500 & 2.308600 & -0.027800 \\
+40.0 & 0.4 & 2 & 25 & 6.863500 & 0.023300 & 6.872400 & -0.008900 \\
+40.0 & 0.4 & 2 & 50 & 6.861100 & 0.023600 & 6.896900 & -0.035800 \\
+40.0 & 0.4 & 2 & 100 & 6.818900 & 0.023900 & 6.909600 & -0.090800 \\
+\bottomrule
+\end{tabular}
+}
+\caption{TVR exercise-grid sensitivity under the shared vanilla benchmark.}
+\label{tab:tvr-timestep}
+\end{table}
 ```
 
-@tbl-lsm-timestep and @tbl-tvr-timestep show that both methods are sensitive to the exercise grid. Longstaff can shift from benchmark overvaluation to benchmark undervaluation as the number of exercise dates changes. TVR remains comparatively close to the benchmark in the selected cases, but the effect of the grid is still visible. The main lesson is that discretization is part of the modeling design, not a neutral background detail.
+Table \ref{tab:lsm-timestep} and Table \ref{tab:tvr-timestep} show that both methods are sensitive to the exercise grid. Longstaff can shift from benchmark overvaluation to benchmark undervaluation as the number of exercise dates changes. TVR remains comparatively close to the benchmark in the selected cases, but the effect of the grid is still visible. The main lesson is that discretization is part of the modeling design, not a neutral background detail. 
 
-```{python}
-#| label: tbl-lsm-basis
-#| tbl-cap: "Longstaff basis-size sensitivity under the shared vanilla benchmark."
-#| tbl-pos: H
-longstaff_basis.round(4)
+```{=latex}
+\begin{table}[H]
+\centering
+\small
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lrrrrrrr}
+\toprule
+Spot & Sigma & Mat. & Basis & LSMC & LSMC SE & American FD & LSMC - FD \\
+\midrule
+40.0 & 0.2 & 1 & 2 & 2.384600 & 0.009900 & 2.299500 & 0.085100 \\
+40.0 & 0.2 & 1 & 3 & 2.443200 & 0.009900 & 2.299500 & 0.143800 \\
+40.0 & 0.2 & 1 & 4 & 2.432700 & 0.009900 & 2.299500 & 0.133200 \\
+40.0 & 0.2 & 1 & 5 & 2.457600 & 0.009800 & 2.299500 & 0.158200 \\
+40.0 & 0.4 & 2 & 2 & 6.889700 & 0.023500 & 6.896900 & -0.007200 \\
+40.0 & 0.4 & 2 & 3 & 7.003900 & 0.023600 & 6.896900 & 0.107000 \\
+40.0 & 0.4 & 2 & 4 & 6.975200 & 0.023400 & 6.896900 & 0.078300 \\
+40.0 & 0.4 & 2 & 5 & 6.992200 & 0.023400 & 6.896900 & 0.095300 \\
+\bottomrule
+\end{tabular}
+}
+\caption{Longstaff basis-size sensitivity under the shared vanilla benchmark.}
+\label{tab:lsm-basis}
+\end{table}
 ```
 
-```{python}
-#| label: tbl-tvr-basis
-#| tbl-cap: "TVR basis-size sensitivity under the shared vanilla benchmark."
-#| tbl-pos: H
-tvr_basis.round(4)
+```{=latex}
+\begin{table}[H]
+\centering
+\small
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lrrrrrrr}
+\toprule
+Spot & Sigma & Mat. & Basis & TVR (OOS) & TVR SE & American FD & TVR - FD \\
+\midrule
+40.0 & 0.2 & 1 & 2 & 2.151000 & 0.010500 & 2.299500 & -0.148500 \\
+40.0 & 0.2 & 1 & 3 & 2.257600 & 0.009900 & 2.299500 & -0.041900 \\
+40.0 & 0.2 & 1 & 4 & 2.288500 & 0.009400 & 2.299500 & -0.011000 \\
+40.0 & 0.2 & 1 & 5 & 2.285000 & 0.009600 & 2.299500 & -0.014500 \\
+40.0 & 0.4 & 2 & 2 & 6.466400 & 0.025300 & 6.896900 & -0.430500 \\
+40.0 & 0.4 & 2 & 3 & 6.799500 & 0.024400 & 6.896900 & -0.097400 \\
+40.0 & 0.4 & 2 & 4 & 6.835200 & 0.023600 & 6.896900 & -0.061700 \\
+40.0 & 0.4 & 2 & 5 & 6.862100 & 0.023300 & 6.896900 & -0.034800 \\
+\bottomrule
+\end{tabular}
+}
+\caption{TVR basis-size sensitivity under the shared vanilla benchmark.}
+\label{tab:tvr-basis}
+\end{table}
 ```
 
-@tbl-lsm-basis and @tbl-tvr-basis show that accuracy is not monotone in the number of basis functions. A richer basis can improve approximation in principle, but it can also amplify instability in finite samples. This pattern appears for both methods, though the strength of the effect differs. The comparison supports the broader point that basis design is a substantive modeling choice rather than a purely technical parameter.
+Table \ref{tab:lsm-basis} and Table \ref{tab:tvr-basis} show that accuracy is not monotone in the number of basis functions. A richer basis can improve approximation in principle, but it can also amplify instability in finite samples. This pattern appears for both methods, though the strength of the effect differs. The comparison supports the broader point that basis design is a substantive modeling choice rather than a purely technical parameter. 
 
-```{python}
-#| label: tbl-lsm-seed-runs
-#| tbl-cap: "Longstaff seed-level results for representative vanilla benchmark cases."
-#| tbl-pos: H
-longstaff_seed_runs[['spot','sigma','maturity','seed','lsmc_price','lsmc_stderr','fd_benchmark','bias_vs_fd']].round(4)
+```{=latex}
+\begin{table}[H]
+\centering
+\small
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lrrrrrrr}
+\toprule
+Spot & Sigma & Mat. & Seed & LSMC & LSMC SE & American FD & Bias vs FD \\
+\midrule
+36.0 & 0.2 & 1 & 20260406 & 4.205800 & 0.012700 & 4.463500 & -0.257700 \\
+36.0 & 0.2 & 1 & 20260407 & 4.199200 & 0.012700 & 4.463500 & -0.264300 \\
+36.0 & 0.2 & 1 & 20260408 & 4.212200 & 0.012700 & 4.463500 & -0.251300 \\
+36.0 & 0.2 & 1 & 20260409 & 4.201400 & 0.012700 & 4.463500 & -0.262100 \\
+36.0 & 0.2 & 1 & 20260410 & 4.220100 & 0.012700 & 4.463500 & -0.243300 \\
+40.0 & 0.2 & 2 & 20260406 & 2.727100 & 0.011900 & 2.873400 & -0.146300 \\
+40.0 & 0.2 & 2 & 20260407 & 2.748100 & 0.011900 & 2.873400 & -0.125300 \\
+40.0 & 0.2 & 2 & 20260408 & 2.754100 & 0.011900 & 2.873400 & -0.119300 \\
+40.0 & 0.2 & 2 & 20260409 & 2.724300 & 0.011900 & 2.873400 & -0.149100 \\
+40.0 & 0.2 & 2 & 20260410 & 2.754500 & 0.012000 & 2.873400 & -0.118800 \\
+44.0 & 0.4 & 1 & 20260406 & 4.132100 & 0.017200 & 3.924000 & 0.208100 \\
+44.0 & 0.4 & 1 & 20260407 & 4.184100 & 0.017300 & 3.924000 & 0.260100 \\
+44.0 & 0.4 & 1 & 20260408 & 4.174400 & 0.017300 & 3.924000 & 0.250400 \\
+44.0 & 0.4 & 1 & 20260409 & 4.121000 & 0.017100 & 3.924000 & 0.197000 \\
+44.0 & 0.4 & 1 & 20260410 & 4.142500 & 0.017200 & 3.924000 & 0.218500 \\
+\bottomrule
+\end{tabular}
+}
+\caption{Longstaff seed-level results for representative vanilla benchmark cases.}
+\label{tab:lsm-seed-runs}
+\end{table}
 ```
 
-```{python}
-#| label: tbl-lsm-seed-summary
-#| tbl-cap: "Longstaff summary across repeated seeds for representative vanilla benchmark cases."
-#| tbl-pos: H
-longstaff_seed_summary[['case','lsmc_price','lsmc_stderr','fd_benchmark','bias_vs_fd']].rename(columns={
-    'lsmc_price':'mean_lsm_price',
-    'lsmc_stderr':'sd_across_runs',
-    'bias_vs_fd':'average_bias_vs_fd'
-}).round(4)
+```{=latex}
+\begin{table}[H]
+\centering
+\small
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lrrrr}
+\toprule
+Case & Mean LSMC & Run SD & American FD & Avg. Bias vs FD \\
+\midrule
+S=36.0, σ=0.2, T=1 & 4.207700 & 0.008500 & 4.463500 & -0.255700 \\
+S=40.0, σ=0.2, T=2 & 2.741600 & 0.014800 & 2.873400 & -0.131800 \\
+S=44.0, σ=0.4, T=1 & 4.150800 & 0.027300 & 3.924000 & 0.226800 \\
+\bottomrule
+\end{tabular}
+}
+\caption{Longstaff summary across repeated seeds for representative vanilla benchmark cases.}
+\label{tab:lsm-seed-summary}
+\end{table}
 ```
 
-@tbl-lsm-seed-runs and @tbl-lsm-seed-summary separate the repeated-seed output into seed-level runs and case-level summaries. This avoids mixing literal summary rows into the same seed column as if they were additional replications. The seed-level table shows the dispersion across runs, while the summary table reports the mean LSM price, the standard deviation across runs, and the average bias relative to the finite-difference benchmark. Together, they make clear that Monte Carlo variation remains present even after the larger workflow revisions.
+Table \ref{tab:lsm-seed-runs} and Table \ref{tab:lsm-seed-summary} separate the repeated-seed output into seed-level runs and case-level summaries. This avoids mixing literal summary rows into the same seed column as if they were additional replications. The seed-level table shows the dispersion across runs, while the summary table reports the mean LSM price, the standard deviation across runs, and the average bias relative to the finite-difference benchmark. Together, they make clear that Monte Carlo variation remains present even after the larger workflow revisions.
 
-\FloatBarrier
+\\FloatBarrier
 
 ### Shared Asian-style Extension
-```{python}
-#| label: tbl-lsm-asian
-#| tbl-cap: "Asian-style extension: Longstaff results."
-#| tbl-pos: H
-longstaff_asian.round(4)
+
+```{=latex}
+\begin{table}[H]
+\centering
+\small
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lrrrrrrrrrrr}
+\toprule
+Case & Spot0 & Sigma & Mat. & Lockout & Ex. Dates & Paths & LSMC & LSMC SE & Euro MC & Premium vs Euro MC & Note \\
+\midrule
+American-Bermuda-Asian & 40.0 & 0.2 & 2 & 0.250000 & 100 & 100000 & 1.521700 & 0.008100 & 1.448800 & 0.072900 & No direct PDE benchmark included here; benchmark emphasis is on the vanilla put case. \\
+\bottomrule
+\end{tabular}
+}
+\caption{Asian-style extension: Longstaff results.}
+\label{tab:lsm-asian}
+\end{table}
 ```
 
-@tbl-lsm-asian shows the Longstaff Asian-style extension under the shared design. The extension introduces a second state variable---the running arithmetic average---and a lockout period before exercise is allowed. The resulting price is therefore not directly comparable to the vanilla benchmark, but it demonstrates that the continuation regression can accommodate a richer state description within the same backward-induction framework.
+Table \ref{tab:lsm-asian} shows the Longstaff Asian-style extension under the shared design. The extension introduces a second state variable, the running arithmetic average, and a lockout period before exercise is allowed. The resulting price is therefore not directly comparable to the vanilla benchmark, but it demonstrates that the continuation regression can accommodate a richer state description within the same backward-induction framework. 
 
-```{python}
-#| label: tbl-tvr-asian
-#| tbl-cap: "Asian-style extension: TVR results."
-#| tbl-pos: H
-tvr_asian.round(4)
+```{=latex}
+\begin{table}[H]
+\centering
+\small
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lrrrrrrrrrrrr}
+\toprule
+Case & Spot0 & Sigma & Mat. & Lockout & Ex. Dates & Paths & TVR (IS) & TVR (OOS) & TVR SE & Euro MC & Premium vs Euro MC & Note \\
+\midrule
+TVR Asian shared extension & 40.0 & 0.2 & 2 & 0.250000 & 100 & 100000 & 1.719900 & 1.715900 & 0.007900 & 1.446800 & 0.269100 & Compact shared extension study; no direct PDE benchmark included for the Asian case. \\
+\bottomrule
+\end{tabular}
+}
+\caption{Asian-style extension: TVR results.}
+\label{tab:tvr-asian}
+\end{table}
 ```
 
-@tbl-tvr-asian presents the corresponding TVR result. The out-of-sample TVR price exceeds its European-style Monte Carlo reference by a visible margin, indicating that the approximate dynamic-programming recursion is also capturing an early-exercise premium in the multi-state case. As on the Longstaff side, this is a compact shared extension study rather than a direct PDE-benchmarked replication.
+Table \ref{tab:tvr-asian} presents the corresponding TVR result. The out-of-sample TVR price exceeds its European-style Monte Carlo reference by a visible margin, indicating that the approximate dynamic-programming recursion is also capturing an early-exercise premium in the multi-state case. As on the Longstaff side, this is a compact shared extension study rather than a direct PDE-benchmarked replication.
 
 ![Asian-style state cloud with exercise overlay: Longstaff.](../visuals/longstaff_asian_state_scatter.png){#fig-longstaff-asian-scatter fig-pos='H'}
 
@@ -534,34 +795,64 @@ tvr_asian.round(4)
 \FloatBarrier
 
 ### Shared Jump-style Extension
-```{python}
-#| label: tbl-lsm-jump
-#| tbl-cap: "Jump-style extension: Longstaff results."
-#| tbl-pos: H
-longstaff_jump.round(4)
+
+```{=latex}
+\begin{table}[H]
+\centering
+\small
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lrrrrrrrrr}
+\toprule
+Model & Spot0 & Sigma & Rate & Mat. & Jump Int. & LSMC & LSMC SE & European & Premium \\
+\midrule
+no\_jump\_gbm & 40.0 & 0.2 & 0.060000 & 1 & 0.000000 & 2.565700 & 0.010400 & 2.066400 & 0.499300 \\
+jump\_to\_ruin & 40.0 & 0.2 & 0.060000 & 1 & 0.400000 & 14.945900 & 0.055600 & 13.817000 & 1.128900 \\
+\bottomrule
+\end{tabular}
+}
+\caption{Jump-style extension: Longstaff results.}
+\label{tab:lsm-jump}
+\end{table}
 ```
 
-@tbl-lsm-jump shows the Longstaff jump-style extension. Once jump-to-ruin risk is introduced, both American and European put values rise sharply relative to the no-jump case because the stock can collapse to zero before maturity. The early-exercise premium remains positive, but its scale differs from the vanilla benchmark because the underlying risk environment has changed.
+Table \ref{tab:lsm-jump} shows the Longstaff jump-style extension. Once jump-to-ruin risk is introduced, both American and European put values rise sharply relative to the no-jump case because the stock can collapse to zero before maturity. The early-exercise premium remains positive, but its scale differs from the vanilla benchmark because the underlying risk environment has changed.
 
-```{python}
-#| label: tbl-tvr-jump
-#| tbl-cap: "Jump-style extension: TVR results."
-#| tbl-pos: H
-tvr_jump.round(4)
+```{=latex}
+\begin{table}[H]
+\centering
+\small
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lrrrrrrrrrr}
+\toprule
+Model & Spot0 & Sigma & Rate & Mat. & Jump Int. & TVR (IS) & TVR (OOS) & TVR SE & European & Premium \\
+\midrule
+no\_jump\_gbm & 40.0 & 0.2 & 0.060000 & 1 & 0.000000 & 2.277800 & 2.289500 & 0.009500 & 2.066400 & 0.223100 \\
+jump\_to\_ruin & 40.0 & 0.2 & 0.060000 & 1 & 0.400000 & 14.141700 & 14.012900 & 0.055200 & 13.742600 & 0.270300 \\
+\bottomrule
+\end{tabular}
+}
+\caption{Jump-style extension: TVR results.}
+\label{tab:tvr-jump}
+\end{table}
 ```
 
-@tbl-tvr-jump shows the same qualitative effect under TVR. The out-of-sample jump-to-ruin value is far above the no-jump value, and the early-exercise premium remains positive. The two methods therefore agree on the broad economic effect of introducing catastrophic downward jump risk, even though their recursive approximations differ.
-
-The boundary figures in @fig-longstaff-jump-boundary and @fig-tvr-jump-boundary support the same reading visually. In each case, the pricing workflow remains intact while only the simulator changes. This is the main point of the jump-style study: it demonstrates modularity with respect to the state dynamics.
+Table \ref{tab:tvr-jump} shows the same qualitative effect under TVR. The out-of-sample jump-to-ruin value is far above the no-jump value, and the early-exercise premium remains positive. The two methods therefore agree on the broad economic effect of introducing catastrophic downward jump risk, even though their recursive approximations differ. The boundary figures in @fig-longstaff-jump-boundary and @fig-tvr-jump-boundary support the same reading visually.In each case, the pricing workflow remains intact while only the simulator changes. This is the main point of the jump-style study: it demonstrates modularity with respect to the state dynamics. 
 
 \FloatBarrier
 
 ### Direct Longstaff vs TVR comparison
-After the shared evidence has been laid out, the comparison between Longstaff and TVR can be summarized in four points. First, the recursion target differs: Longstaff regresses discounted realized future cash flows, whereas TVR regresses discounted next-step estimated values. Second, the benchmark behavior differs: in the revised vanilla study, Longstaff may sit above or below the finite-difference benchmark depending on the case, while TVR tends to remain close to it and is often slightly below it. Third, the validation behavior differs: Longstaff shows visible same-path optimism unless the policy is evaluated out of sample, while TVR's matched implementation shows a smaller in-sample versus out-of-sample gap in the representative cases examined here. Fourth, the interpretation differs: Longstaff is more directly tied to continuation regression on in-the-money paths, while TVR more clearly reflects approximate dynamic programming through recursive value approximation.
+
+After the shared evidence has been laid out, the comparison between Longstaff and TVR can be summarized in four points. First, the recursion target differs: Longstaff regresses discounted realized future cash flows, whereas TVR regresses discounted next-step estimated values. 
+
+Second, the benchmark behavior differs: in the revised vanilla study, Longstaff may sit above or below the finite-difference benchmark depending on the case, while TVR tends to remain close to it and is often slightly below it. 
+
+Third, the validation behavior differs: Longstaff shows visible same-path optimism unless the policy is evaluated out of sample, while TVR's matched implementation shows a smaller in-sample versus out-of-sample gap in the representative cases examined here.
+
+Fourth, the interpretation differs: Longstaff is more directly tied to continuation regression on in-the-money paths, while TVR more clearly reflects approximate dynamic programming through recursive value approximation.
 
 ## Implementation and Testing
 
-The implementation and testing logic is driven by the course rubric rather than by code structure alone. Two pricing frameworks are implemented under a common benchmark philosophy: Longstaff--Schwartz as the main practical algorithm and Tsitsiklis--Van Roy as a matched approximate-dynamic-programming comparator. Both methods are tested on the same synthetic vanilla benchmark, the same Asian-style extension, and the same jump-style extension. The purpose of this design is not to build two isolated coding exercises, but to study how different regression-based recursion rules behave under the same pricing environment.
+The implementation and testing logic is driven by the course rubric rather than by code structure alone. Two pricing frameworks are implemented under a common benchmark philosophy: Longstaff--Schwartz as the main practical algorithm and Tsitsiklis--Van Roy as a matched approximate-dynamic-programming comparator. methods are tested on the same synthetic vanilla benchmark, the same Asian-style extension, and the same jump-style extension. The purpose of this design is not to build two isolated coding exercises, but to study how different regression-based recursion rules behave under the same pricing environment.
 
 The vanilla case is the main validation setting because it admits a direct one-dimensional American benchmark. In that setting, the Black--Scholes European put is used as a lower reference for the corresponding European claim, the implicit finite-difference solver is used as the main direct American benchmark, and the CRR tree is included as an auxiliary consistency check. This means the project does more than compare one regression method with another: it compares both Longstaff and TVR with a benchmark layer that solves the same vanilla American stopping problem under the same GBM assumptions.
 

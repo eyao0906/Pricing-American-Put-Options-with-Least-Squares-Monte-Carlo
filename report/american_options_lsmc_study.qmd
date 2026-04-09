@@ -462,7 +462,7 @@ Overall, the table suggests that TVR is the more validation-stable of the two re
 
 \FloatBarrier
 
-### Shared Exercise-policy Interpretation
+### Vanilla exercise-policy interpretation
 ![Empirical exercise-boundary summary: Longstaff vanilla benchmark.](../visuals/longstaff_vanilla_exercise_boundary.png){#fig-vanilla-boundary fig-pos='H'}
 
 @fig-vanilla-boundary provides a qualitative view of the exercise policy implied by the Longstaff–Schwartz regression in representative vanilla cases. Each point is the mean spot level among paths that exercise at that date, so the figure is an empirical summary of where exercise occurs in the simulated state space. It shows that exercise is concentrated in economically plausible in-the-money regions and that the location of exercised states shifts with volatility and maturity. In particular, cases with higher continuation value tend to exhibit exercise only at lower spot levels, which is consistent with the option holder waiting longer before giving up future optionality. The figure therefore complements the pricing tables by illustrating how the fitted stopping rule behaves across the parameter grid, even though precise boundary analysis should be based on the continuation-value regression itself rather than on exercised-path averages.
@@ -480,18 +480,18 @@ Overall, the table suggests that TVR is the more validation-stable of the two re
 \toprule
 Spot & Sigma & Mat. & Fit Seed & Eval Seed & LSMC (IS) & IS SE & LSMC (OOS) & OOS SE & Fit - Eval \\
 \midrule
-36.0 & 0.2 & 1 & 20260406 & 20260406 & 4.452400 & 0.013500 & 4.205700 & 0.012700 & 0.246800 \\
-36.0 & 0.2 & 1 & 20260407 & 20260407 & 4.451700 & 0.013500 & 4.205000 & 0.012700 & 0.246700 \\
-36.0 & 0.2 & 1 & 20260408 & 20260408 & 4.451900 & 0.013500 & 4.205200 & 0.012700 & 0.246700 \\
-40.0 & 0.2 & 2 & 20261406 & 20262406 & 3.059600 & 0.013400 & 2.744200 & 0.011900 & 0.315400 \\
-40.0 & 0.2 & 2 & 20261407 & 20262407 & 3.027500 & 0.013300 & 2.721900 & 0.011900 & 0.305600 \\
-40.0 & 0.2 & 2 & 20261408 & 20262408 & 3.020100 & 0.013400 & 2.692100 & 0.011800 & 0.328000 \\
-44.0 & 0.4 & 1 & 20262406 & 20264406 & 4.360400 & 0.018300 & 4.110300 & 0.017200 & 0.250100 \\
-44.0 & 0.4 & 1 & 20262407 & 20264407 & 4.390800 & 0.018400 & 4.152600 & 0.017400 & 0.238200 \\
-44.0 & 0.4 & 1 & 20262408 & 20264408 & 4.370800 & 0.018300 & 4.119700 & 0.017200 & 0.251000 \\
-40.0 & 0.4 & 2 & 20263406 & 20266406 & 7.809700 & 0.026500 & 6.965200 & 0.023500 & 0.844500 \\
-40.0 & 0.4 & 2 & 20263407 & 20266407 & 7.659600 & 0.026500 & 6.821900 & 0.023500 & 0.837700 \\
-40.0 & 0.4 & 2 & 20263408 & 20266408 & 7.802000 & 0.026500 & 6.974300 & 0.023500 & 0.827700 \\
+36.0 & 0.2 & 1 & 20260406 & 20268325 & 4.452400 & 0.013500 & 4.205800 & 0.012700 & 0.246600 \\
+36.0 & 0.2 & 1 & 20260407 & 20268326 & 4.451700 & 0.013500 & 4.199200 & 0.012700 & 0.252400 \\
+36.0 & 0.2 & 1 & 20260408 & 20268327 & 4.451900 & 0.013500 & 4.212200 & 0.012700 & 0.239700 \\
+40.0 & 0.2 & 2 & 20261406 & 20269325 & 3.059600 & 0.013400 & 2.738800 & 0.011900 & 0.320800 \\
+40.0 & 0.2 & 2 & 20261407 & 20269326 & 3.027500 & 0.013300 & 2.721000 & 0.011900 & 0.306500 \\
+40.0 & 0.2 & 2 & 20261408 & 20269327 & 3.020100 & 0.013400 & 2.717500 & 0.011900 & 0.302600 \\
+44.0 & 0.4 & 1 & 20262406 & 20270325 & 4.360400 & 0.018300 & 4.121500 & 0.017300 & 0.238900 \\
+44.0 & 0.4 & 1 & 20262407 & 20270326 & 4.390800 & 0.018400 & 4.148800 & 0.017300 & 0.242000 \\
+44.0 & 0.4 & 1 & 20262408 & 20270327 & 4.370800 & 0.018300 & 4.133300 & 0.017200 & 0.237500 \\
+40.0 & 0.4 & 2 & 20263406 & 20271325 & 7.809700 & 0.026500 & 6.955500 & 0.023500 & 0.854200 \\
+40.0 & 0.4 & 2 & 20263407 & 20271326 & 7.659600 & 0.026500 & 6.811800 & 0.023500 & 0.847800 \\
+40.0 & 0.4 & 2 & 20263408 & 20271327 & 7.802000 & 0.026500 & 6.989600 & 0.023500 & 0.812400 \\
 \bottomrule
 \end{tabular}%
 }
@@ -542,12 +542,12 @@ Spot & Sigma & Mat. & Paths & LSMC & LSMC SE & American FD & LSMC - FD \\
 \midrule
 40.0 & 0.2 & 1 & 25000 & 2.317400 & 0.019400 & 2.299500 & 0.017900 \\
 40.0 & 0.2 & 1 & 50000 & 2.387800 & 0.013900 & 2.299500 & 0.088400 \\
-40.0 & 0.2 & 1 & 100000 & 2.447200 & 0.009900 & 2.299500 & 0.147700 \\
-40.0 & 0.2 & 1 & 200000 & 2.447400 & 0.007000 & 2.299500 & 0.147900 \\
+40.0 & 0.2 & 1 & 1 & 2.447200 & 0.009900 & 2.299500 & 0.147700 \\
+40.0 & 0.2 & 1 & 2 & 2.447400 & 0.007000 & 2.299500 & 0.147900 \\
 40.0 & 0.4 & 2 & 25000 & 6.935200 & 0.046700 & 6.896900 & 0.038300 \\
 40.0 & 0.4 & 2 & 50000 & 6.835400 & 0.033300 & 6.896900 & -0.061500 \\
-40.0 & 0.4 & 2 & 100000 & 6.857400 & 0.023500 & 6.896900 & -0.039500 \\
-40.0 & 0.4 & 2 & 200000 & 6.957600 & 0.016600 & 6.896900 & 0.060700 \\
+40.0 & 0.4 & 2 & 1 & 6.857400 & 0.023500 & 6.896900 & -0.039500 \\
+40.0 & 0.4 & 2 & 2 & 6.957600 & 0.016600 & 6.896900 & 0.060700 \\
 \bottomrule
 \end{tabular}
 }
@@ -567,12 +567,12 @@ Spot & Sigma & Mat. & Paths & TVR (OOS) & TVR SE & American FD & TVR - FD \\
 \midrule
 40.0 & 0.2 & 1 & 25000 & 2.270300 & 0.019100 & 2.299500 & -0.029200 \\
 40.0 & 0.2 & 1 & 50000 & 2.299000 & 0.013400 & 2.299500 & -0.000500 \\
-40.0 & 0.2 & 1 & 100000 & 2.290900 & 0.009400 & 2.299500 & -0.008600 \\
-40.0 & 0.2 & 1 & 200000 & 2.281800 & 0.006700 & 2.299500 & -0.017700 \\
+40.0 & 0.2 & 1 & 1 & 2.290900 & 0.009400 & 2.299500 & -0.008600 \\
+40.0 & 0.2 & 1 & 2 & 2.281800 & 0.006700 & 2.299500 & -0.017700 \\
 40.0 & 0.4 & 2 & 25000 & 6.889500 & 0.047200 & 6.896900 & -0.007400 \\
 40.0 & 0.4 & 2 & 50000 & 6.860600 & 0.033400 & 6.896900 & -0.036300 \\
-40.0 & 0.4 & 2 & 100000 & 6.831800 & 0.023600 & 6.896900 & -0.065200 \\
-40.0 & 0.4 & 2 & 200000 & 6.850000 & 0.016700 & 6.896900 & -0.046900 \\
+40.0 & 0.4 & 2 & 1 & 6.831800 & 0.023600 & 6.896900 & -0.065200 \\
+40.0 & 0.4 & 2 & 2 & 6.850000 & 0.016700 & 6.896900 & -0.046900 \\
 \bottomrule
 \end{tabular}
 }
@@ -581,7 +581,7 @@ Spot & Sigma & Mat. & Paths & TVR (OOS) & TVR SE & American FD & TVR - FD \\
 \end{table}
 ```
 
-Table \ref{tab:lsm-paths} and Table \ref{tab:tvr-paths} show that increasing path count reduces standard error, but does not by itself guarantee benchmark convergence. The Longstaff values move around the finite-difference benchmark in a case-dependent way, while TVR stays relatively close to it across the tested path counts. This comparison reinforces the idea that path count is only one element of performance; recursion target and policy construction matter as well.
+Table \ref{tab:lsm-inout} and Table \ref{tab:tvr-inout} provide a common validation lens for the two regression-based pricing procedures. For Longstaff–Schwartz, the comparison is especially important because the paper’s logic is built around estimating continuation values from simulated paths and then using the resulting rule to make exercise decisions. Longstaff and Schwartz note that a useful diagnostic is to have “the stopping rule … estimated from one set of paths and then applied to another set of paths,” and Table \ref{tab:lsm-inout} shows why that diagnostic matters in the present implementation: the in-sample Longstaff values are systematically above the out-of-sample values, with the gap becoming particularly large in the high-volatility, long-maturity case. This indicates that same-path fitting can overstate performance when the continuation regression is evaluated on the same sample used to construct it. By contrast, Table \ref{tab:tvr-inout} shows that the TVR recursion is much more stable under the same fit-versus-evaluation design, with only small differences between in-sample and out-of-sample values in the representative cases reported here. This does not mean that TVR is uniformly more accurate than Longstaff in pricing terms; rather, it supports a more specific interpretation that fits the role of the two papers in the project. Longstaff–Schwartz contributes the practical continuation-regression framework and highlights the need to validate the implied stopping rule out of sample, while Tsitsiklis–Van Roy contributes the approximate dynamic programming perspective in which regression quality depends on the choice of representative states. In particular, Tsitsiklis and Van Roy show that when such states are generated from simulated risk-neutral trajectories, the “approximation error remains bounded,” which is consistent with the comparatively tight fit-versus-evaluation behavior observed here. Taken together, the two tables therefore do more than compare two numerical outputs: they justify the project’s shared validation design and show that the two recursion schemes differ not only in price level, but also in how robustly their fitted exercise policies survive independent evaluation.
 
 ```{=latex}
 \begin{table}[H]
@@ -750,7 +750,7 @@ Table \ref{tab:lsm-seed-runs} and Table \ref{tab:lsm-seed-summary} separate the 
 \toprule
 Case & Spot0 & Sigma & Mat. & Lockout & Ex. Dates & Paths & LSMC & LSMC SE & Euro MC & Premium vs Euro MC & Note \\
 \midrule
-American-Bermuda-Asian & 40.0 & 0.2 & 2 & 0.250000 & 100 & 100000 & 1.521700 & 0.008100 & 1.448800 & 0.072900 & No direct PDE benchmark included here; benchmark emphasis is on the vanilla put case. \\
+American-Bermuda-Asian & 40.0 & 0.2 & 2 & 0.250000 & 100 & 1 & 1.521700 & 0.008100 & 1.448800 & 0.072900 & No direct PDE benchmark included here; benchmark emphasis is on the vanilla put case. \\
 \bottomrule
 \end{tabular}
 }
@@ -770,7 +770,7 @@ Table \ref{tab:lsm-asian} shows the Longstaff Asian-style extension under the sh
 \toprule
 Case & Spot0 & Sigma & Mat. & Lockout & Ex. Dates & Paths & TVR (IS) & TVR (OOS) & TVR SE & Euro MC & Premium vs Euro MC & Note \\
 \midrule
-TVR Asian shared extension & 40.0 & 0.2 & 2 & 0.250000 & 100 & 100000 & 1.719900 & 1.715900 & 0.007900 & 1.446800 & 0.269100 & Compact shared extension study; no direct PDE benchmark included for the Asian case. \\
+TVR Asian shared extension & 40.0 & 0.2 & 2 & 0.250000 & 100 & 1 & 1.719900 & 1.715900 & 0.007900 & 1.446800 & 0.269100 & Compact shared extension study; no direct PDE benchmark included for the Asian case. \\
 \bottomrule
 \end{tabular}
 }
@@ -802,8 +802,8 @@ Table \ref{tab:tvr-asian} presents the corresponding TVR result. The out-of-samp
 \toprule
 Model & Spot0 & Sigma & Rate & Mat. & Jump Int. & LSMC & LSMC SE & European & Premium \\
 \midrule
-no\_jump\_gbm & 40.0 & 0.2 & 0.060000 & 1 & 0.000000 & 2.565700 & 0.010400 & 2.066400 & 0.499300 \\
-jump\_to\_ruin & 40.0 & 0.2 & 0.060000 & 1 & 0.400000 & 14.945900 & 0.055600 & 13.817000 & 1.128900 \\
+no\_jump\_gbm & 40.0 & 0.2 & 0.060000 & 1 & 0.0 & 2.565700 & 0.010400 & 2.066400 & 0.499300 \\
+jump\_to\_ruin & 40.0 & 0.2 & 0.060000 & 1 & 0.4 & 14.945900 & 0.055600 & 13.817000 & 1.128900 \\
 \bottomrule
 \end{tabular}
 }
@@ -827,8 +827,8 @@ The Longstaff jump-style boundary figure extends the same idea to the jump-to-ru
 \toprule
 Model & Spot0 & Sigma & Rate & Mat. & Jump Int. & TVR (IS) & TVR (OOS) & TVR SE & European & Premium \\
 \midrule
-no\_jump\_gbm & 40.0 & 0.2 & 0.060000 & 1 & 0.000000 & 2.277800 & 2.289500 & 0.009500 & 2.066400 & 0.223100 \\
-jump\_to\_ruin & 40.0 & 0.2 & 0.060000 & 1 & 0.400000 & 14.141700 & 14.012900 & 0.055200 & 13.742600 & 0.270300 \\
+no\_jump\_gbm & 40.0 & 0.2 & 0.060000 & 1 & 0.0 & 2.277800 & 2.289500 & 0.009500 & 2.066400 & 0.223100 \\
+jump\_to\_ruin & 40.0 & 0.2 & 0.060000 & 1 & 0.4 & 14.141700 & 14.012900 & 0.055200 & 13.742600 & 0.270300 \\
 \bottomrule
 \end{tabular}
 }

@@ -185,7 +185,7 @@ def run_in_vs_out_sample() -> pd.DataFrame:
     for case_id, (spot, sigma, maturity) in enumerate(cases):
         for repeat in range(3):
             seed_fit = BASE_SEED + 1000 * case_id + repeat
-            seed_eval = BASE_SEED + 2000 * case_id + repeat
+            seed_eval = seed_fit + 7919
             _, in_result, policy, diagnostics = price_vanilla_lsm(
                 spot=spot,
                 sigma=sigma,

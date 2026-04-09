@@ -66,10 +66,6 @@ fontsize: 12pt
 - **Common choices:** Similar to the Longstaff--Schwartz method, common basis functions include polynomials, splines, and orthogonal functions. However, since the Tsitsiklis--Van Roy method directly approximates the value function, the choice of basis functions may need to be more carefully considered to capture the relevant features of the option's value, especially in cases with complex payoff structures or high-dimensional problems.
 - **Impact on accuracy:** As with the Longstaff--Schwartz method, the choice of basis functions can significantly affect the accuracy of the estimates. In the Tsitsiklis--Van Roy method, the accuracy of the value function approximation can be particularly sensitive to the choice of basis functions, as it directly impacts the estimation of the option's value and the resulting exercise strategy.
 
-## Convergence and accuracy
-- **Convergence:** Both methods rely on the law of large numbers to ensure that the estimates converge to the true option value as the number of simulations increases. However, the rate of convergence can be slow, especially for options with long maturities or high volatility, which may require a large number of simulations to achieve accurate results.
-- **Accuracy:** The accuracy of the estimates can be affected by several factors, including the choice of basis functions, the number of simulations, and the complexity of the payoff structure. In general, both methods can provide accurate estimates for American options, but may require careful tuning and experimentation to achieve the best results for a given problem.
-
 ##  Experimental Design
 - **Objective:** To compare the performance of the Longstaff--Schwartz and Tsitsiklis--Van Roy methods in pricing American vanilla put options, American-Asian-Bermudan options, and American options on assets which follow jump-diffusion processes.
 
@@ -99,6 +95,10 @@ fontsize: 12pt
 ## Longstaff vs. Tsitsiklis: A Direct Comparison
 
 ## Implementation and Computational Testing
+
+## Convergence and accuracy
+- **Convergence:** Both methods rely on the law of large numbers to ensure that the estimates converge to the true option value as the number of simulations increases. However, the rate of convergence can be slow, especially for options with long maturities or high volatility, which may require a large number of simulations to achieve accurate results.
+- **Accuracy:** The accuracy of the estimates can be affected by several factors, including the choice of basis functions, the number of simulations, and the complexity of the payoff structure. In general, both methods can provide accurate estimates for American options, but may require careful tuning and experimentation to achieve the best results for a given problem.
 
 ## Critical Assessment of Methods
 - **Longstaff--Schwartz method:**

@@ -1007,14 +1007,13 @@ The figure therefore supports that once the simulator changes, both methods rema
 \FloatBarrier
 
 ### Direct Longstaff vs TVR comparison
+Taken together, the results point to a consistent methodological contrast between the two recursion schemes. Longstaff and TVR solve the same optimal-stopping problem under the same testbeds, but they do not behave the same numerically.
 
-After the shared evidence has been laid out, the comparison between Longstaff and TVR can be summarized in four points. First, the recursion target differs: Longstaff regresses discounted realized future cash flows, whereas TVR regresses discounted next-step estimated values. 
+Longstaff is the more direct continuation-regression method: it fits discounted realized future cash flows and converts that fit into an exercise rule. In the shared vanilla benchmark, this gives prices of the correct order of magnitude, but with visibly case-dependent benchmark error and a clear need for out-of-sample policy evaluation. TVR is the more recursive value-approximation method: under the same design, it tends to remain closer to its fitted and evaluated values and usually stays near, though often slightly below, the finite-difference benchmark.
 
-Second, the benchmark behavior differs: in the revised vanilla study, Longstaff may sit above or below the finite-difference benchmark depending on the case, while TVR tends to remain close to it and is often slightly below it. 
+That distinction carries into the extensions. In the Asian-style study, Longstaff appears more exercise-prone in borderline states, while TVR implies a more continuation-oriented policy. In the jump-style study, both methods remain coherent when the simulator changes, but the same contrast persists: Longstaff produces the less conservative stopping rule, while TVR remains the more validation-stable comparator.
 
-Third, the validation behavior differs: Longstaff shows visible same-path optimism unless the policy is evaluated out of sample, while TVR's matched implementation shows a smaller in-sample versus out-of-sample gap in the representative cases examined here.
-
-Fourth, the interpretation differs: Longstaff is more directly tied to continuation regression on in-the-money paths, while TVR more clearly reflects approximate dynamic programming through recursive value approximation.
+The main conclusion of the Results section is therefore not that one method dominates the other in every setting. It is that the two papers lead to systematically different numerical behavior under a common implementation framework. Longstaff is more directly tied to practical stopping-rule construction, but also more sensitive to regression design and validation structure. TVR is more stable under matched out-of-sample evaluation, but tends to behave as the more conservative fitted approximation. That is the central empirical distinction the shared benchmark and extension evidence makes visible.
 
 ## Implementation and Testing
 

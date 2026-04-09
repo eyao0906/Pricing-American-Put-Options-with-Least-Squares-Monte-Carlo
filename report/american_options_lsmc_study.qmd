@@ -364,9 +364,6 @@ In this project, the CRR tree is not the primary benchmark because the finite-di
 ### Overall implementation logic
 Putting these pieces together, the workflow is as follows. First, choose the shared model inputs ($S_0$,K,r,$\sigma$,T) under the synthetic GBM benchmark. Second, compute the benchmark layer: Black--Scholes for the European lower reference, finite differences for the main direct American benchmark, and CRR as an auxiliary American check. Third, run the two regression-based methods under the same simulated-path design. Fourth, compare Longstaff and TVR not just to each other, but to the benchmark layer that defines what a plausible vanilla American price should look like. This is why the vanilla scripts for Longstaff and TVR operate under the same benchmark philosophy, and the Asian-style and jump-style scripts operate under the same extension philosophy. The result is a single workflow with shared testbeds and different recursion logic rather than two disconnected coding exercises. 
 
-Here is the revised section with the rendering issues resolved. The "Missing $" error was caused by the unescaped underscores in the jump model names (`no_jump_gbm` and `jump_to_ruin`), which LaTeX interprets as math-mode subscripts. I have escaped them as `\_` and adjusted the spot, volatility, and maturity columns to remove the trailing zeros as requested.
-
-
 ## Results
 ### Shared Vanilla Benchmark
 ```{=latex}
@@ -769,7 +766,7 @@ $$
 dS_t = r S_t,dt + \sigma S_t,dW_t^{\mathbb Q},
 $$
 
-with constant r and $\sigma$. In the present Asian benchmark, the contract parameters are set to $K=100, \qquad r=0.06,\qquad \sigma=0.20,\qquad T=2$, with a lockout period of 0.25 years and 100 exercise dates per year in the discrete approximation. The same contract scope is used for both Longstaff and TVR.  
+with constant r and $\sigma$. In the present Asian benchmark, the contract parameters are set to K = 100, r = 0.06, $\sigma = 0.20$, T = 2, with a lockout period of 0.25 years and 100 exercise dates per year in the discrete approximation. The same contract scope is used for both Longstaff and TVR.  
 
 To reflect the paper’s idea that the average starts before valuation, we use a pre-started running arithmetic average:
 $$
@@ -783,7 +780,7 @@ The payoff from immediate exercise at time t is $h(S_t,A_t)=(K-A_t)^+,$ so this 
 
 $$
 V_0 = \sup_{\tau \in \mathcal T,\ \tau \ge t_{\mathrm{lock}}}
-\mathbb E^{\mathbb Q}!\left[e^{-r\tau}(K-A_\tau)^+\right].
+\mathbb E^{\mathbb Q} \left[e^{-r\tau}(K-A_\tau)^+\right].
 $$
 
 With exercise dates $(0=t_0<t_1<\cdots<t_N=T)$, the discrete-time Bellman recursion is
@@ -889,6 +886,44 @@ Their results support the project’s broader storyline: Longstaff–Schwartz pr
 
 ### Jump-style Extension
 
+To complement the multistate Asian case, we next consider a paper-inspired jump-dynamics extension in which the payoff remains that of an American put, but the underlying state process is changed. The goal is different from the Asian section. There, the main challenge was a richer state vector; here, the main challenge is that the underlying is no longer governed by standard Black–Scholes diffusion dynamics. This follows the fourth Longstaff–Schwartz example, which is included precisely to show that least-squares Monte Carlo is not tied to pure GBM and can also be applied when the stock price process contains jumps. 
+
+In the project implementation, the same idea is used as a matched extension layer for both Longstaff and TVR: the pricing workflow is kept fixed while the simulator is changed.
+
+Under the risk-neutral measure, we use a stylized jump-to-ruin process of the form
+$$
+dS_t = (r+\lambda)S_t,dt + \sigma S_t,dW_t^{\mathbb Q} - S_{t^-},dq_t,
+$$
+
+where $q_t$ is a Poisson process with intensity $\lambda$. When a jump occurs, the stock is sent to zero and remains there afterward. The $r+\lambda$ drift adjustment is the martingale correction used in the paper’s jump comparison. 
+
+The immediate exercise payoff remains the vanilla American put payoff, $h(S_t) = (K-S_t)^+,$ so the time-zero value is
+$$
+V_0 = \sup_{\tau \in \mathcal T}
+\mathbb E^{\mathbb Q} \left[e^{-r\tau}(K-S_\tau)^+\right].
+$$
+
+With exercise dates $0=t_0<t_1<\cdots<t_N=T$, the discrete-time Bellman recursion is
+$$
+V_i(s)=
+\max\left\{
+(K-s)^+,\;
+\mathbb{E}^{\mathbb{Q}}\!\left[
+e^{-r\Delta t} V_{i+1}(S_{t_{i+1}})
+\,\middle|\, S_{t_i}=s
+\right]
+\right\}.
+$$
+
+As in the paper, the jump study is set up as a matched comparison rather than a generic “add jumps and see what happens” exercise. We compare two cases with the same strike and maturity, K = 40, r = 0.06, T = 1, using 26 exercise dates per year:
+
+* **no jump:** $\lambda=0, \sigma=0.30$
+* **jump-to-ruin:** $\lambda=0.05, \sigma=0.20$.
+
+This mirrors Longstaff and Schwartz’s construction, where the no-jump and jump cases are chosen so that the first two moments are matched as closely as possible, allowing the comparison to isolate the effect of the changed distributional shape rather than raw variance differences alone. 
+
+The computational problem is still an optimal stopping problem in one state variable, but now the continuation value is formed under non-GBM dynamics. In the project code, both methods therefore keep the same regression-and-backward-induction architecture as before, while only the simulated state process is changed. That is the main reason this section is included: it provides a compact test of model flexibility under changed dynamics, not a second direct benchmark study of the same type as the vanilla finite-difference section.
+
 ```{=latex}
 \begin{table}[H]
 \centering
@@ -898,29 +933,35 @@ Their results support the project’s broader storyline: Longstaff–Schwartz pr
 \toprule
 Model & Spot0 & LSMC (OOS) & LSMC SE & LSMC (IS) & Fit-Eval & Euro MC & Premium vs Euro MC \\
 \midrule
-No jump       & 36.0 & 5.8278 & 0.0237 & 6.1747 & 0.3469 & 5.2840 & 0.5438 \\
-No jump       & 38.0 & 4.9795 & 0.0219 & 5.2743 & 0.2948 & 4.3383 & 0.6412 \\
-No jump       & 40.0 & 4.0926 & 0.0204 & 4.3274 & 0.2348 & 3.5700 & 0.5225 \\
-No jump       & 42.0 & 3.2372 & 0.0185 & 3.3966 & 0.1594 & 2.8703 & 0.3669 \\
-No jump       & 44.0 & 2.6634 & 0.0172 & 2.8281 & 0.1647 & 2.3367 & 0.3267 \\
-Jump-to-ruin  & 36.0 & 5.2153 & 0.0357 & 5.4409 & 0.2256 & 4.6241 & 0.5912 \\
-Jump-to-ruin  & 38.0 & 4.3515 & 0.0352 & 4.6158 & 0.2643 & 3.7883 & 0.5632 \\
-Jump-to-ruin  & 40.0 & 3.6142 & 0.0358 & 3.7635 & 0.1493 & 3.2200 & 0.3943 \\
-Jump-to-ruin  & 42.0 & 3.0694 & 0.0361 & 3.2529 & 0.1835 & 2.7900 & 0.2794 \\
-Jump-to-ruin  & 44.0 & 2.5995 & 0.0355 & 2.8559 & 0.2564 & 2.3937 & 0.2058 \\
+No jump      & 36.0 & 5.8278 & 0.0237 & 6.1747 & 0.3469 & 5.2840 & 0.5438 \\
+No jump      & 38.0 & 4.9795 & 0.0219 & 5.2743 & 0.2948 & 4.3383 & 0.6412 \\
+No jump      & 40.0 & 4.0926 & 0.0204 & 4.3274 & 0.2348 & 3.5700 & 0.5225 \\
+No jump      & 42.0 & 3.2372 & 0.0185 & 3.3966 & 0.1594 & 2.8703 & 0.3669 \\
+No jump      & 44.0 & 2.6634 & 0.0172 & 2.8281 & 0.1647 & 2.3367 & 0.3267 \\
+Jump-to-ruin & 36.0 & 5.2153 & 0.0357 & 5.4409 & 0.2256 & 4.6241 & 0.5912 \\
+Jump-to-ruin & 38.0 & 4.3515 & 0.0352 & 4.6158 & 0.2643 & 3.7883 & 0.5632 \\
+Jump-to-ruin & 40.0 & 3.6142 & 0.0358 & 3.7635 & 0.1493 & 3.2200 & 0.3943 \\
+Jump-to-ruin & 42.0 & 3.0694 & 0.0361 & 3.2529 & 0.1835 & 2.7900 & 0.2794 \\
+Jump-to-ruin & 44.0 & 2.5995 & 0.0355 & 2.8559 & 0.2564 & 2.3937 & 0.2058 \\
 \bottomrule
 \end{tabular}%
 }
-\caption{Jump-style extension: Longstaff results on the paper-inspired matched jump grid with $K=40$, $r=0.06$, $T=1$, 26 exercise dates per year, and 50{,}000 total paths. The no-jump case uses $\sigma=0.30,\ \lambda=0.00$, while the jump-to-ruin case uses $\sigma=0.20,\ \lambda=0.05$.}
+\caption{Jump-style extension: Longstaff results on the matched jump grid with $K=40$, $r=0.06$, $T=1$, 26 exercise dates per year, and 50{,}000 total paths. The no-jump case uses $\sigma=0.30,\ \lambda=0.00$, while the jump-to-ruin case uses $\sigma=0.20,\ \lambda=0.05$.}
 \label{tab:lsm-jump}
 \end{table}
 ```
 
-Table \ref{tab:lsm-jump} shows the Longstaff jump-style extension. Once jump-to-ruin risk is introduced, both American and European put values rise sharply relative to the no-jump case because the stock can collapse to zero before maturity. The early-exercise premium remains positive, but its scale differs from the vanilla benchmark because the underlying risk environment has changed.
+Table \ref{tab:lsm-jump} places the Longstaff method in a paper-inspired matched jump setting by comparing a no-jump case ($\sigma=0.30,\lambda=0$) with a jump-to-ruin case ($\sigma=0.20,\lambda=0.05$) on the same spot grid. 
 
-![Jump-style boundary comparison: Longstaff.](../visuals/longstaff_jump_boundary_comparison.png){#fig-longstaff-jump-boundary fig-pos='H'}
+Within each model, put values decline as spot rises, and the American price remains above the corresponding European Monte Carlo value, so the fitted stopping rule continues to generate a positive early-exercise premium throughout the grid. More importantly, the jump-to-ruin values are generally lower than the matched no-jump values, both for the American and European contracts. 
 
-The Longstaff jump-style boundary figure extends the same idea to the jump-to-ruin setting. Once downward jump risk is introduced, exercise decisions occur under very different state dynamics. The figure should again be read as a summary of simulated exercise behavior rather than as a structural boundary, but it makes the change in stopping behavior visible.
+This is consistent with Longstaff and Schwartz’s own jump-diffusion comparison, where they report American values of 3.80 in the no-jump case and 3.40 in the jump case, European values of 3.58 and 3.23, and early-exercise premia of 0.22 and 0.17, respectively. The jump case is lower because the diffusion volatility is also lower, so “the windfall gain to the optionholder from a jump does not offset the effects of the lower diffusion coefficient.” (Longstaff & Schwartz, 2001, p. 136) Read in that spirit, the present table should not be interpreted as saying that jump risk universally lowers put values; rather, it shows that under this matched-moment comparison, the revised Longstaff implementation reproduces the same qualitative economic effect as the paper.  
+
+![Longstaff jump extension: matched prices across spot grid and representative exercised-state summary.](../visuals/longstaff_jump_boundary_comparison.png){#fig-lsm-jump-boundary fig-pos='H'}
+
+@fig-longstaff-jump-boundary complements Table \ref{tab:lsm-jump} by moving from price levels to policy behavior under the same matched jump grid. The top panel confirms the main table result visually: for every spot in the grid, the American value lies above the European Monte Carlo reference, and the jump-to-ruin case remains below the matched no-jump case in both the American and European curves. 
+
+This is the same qualitative ranking reported in the table, so the figure reinforces that the revised Longstaff implementation is internally coherent under the changed dynamics. The bottom panel then shows what the fitted stopping rule is doing in the representative case $S_0$ = 40. Exercised states are concentrated close to the strike for much of the horizon, which suggests that the Longstaff policy remains relatively exercise-prone once the put becomes only modestly in the money. The jump-to-ruin band is also wider on the downside, reflecting the fact that the revised jump simulator allows catastrophic downward moves, so some exercised paths occur at substantially lower stock levels. 
 
 ```{=latex}
 \begin{table}[H]
@@ -931,29 +972,37 @@ The Longstaff jump-style boundary figure extends the same idea to the jump-to-ru
 \toprule
 Model & Spot0 & TVR (IS) & TVR (OOS) & TVR SE & Fit-Eval & Euro MC & Premium vs Euro MC & TVR - LSMC \\
 \midrule
-No jump       & 36.0 & 5.6828 & 5.6759 & 0.0231 &  0.0069 & 5.2860 & 0.3899 & -0.1519 \\
-No jump       & 38.0 & 4.6452 & 4.6125 & 0.0221 &  0.0327 & 4.3488 & 0.2637 & -0.3670 \\
-No jump       & 40.0 & 3.7436 & 3.7431 & 0.0207 &  0.0006 & 3.5881 & 0.1550 & -0.3495 \\
-No jump       & 42.0 & 3.0373 & 3.0281 & 0.0190 &  0.0092 & 2.8986 & 0.1295 & -0.2091 \\
-No jump       & 44.0 & 2.4316 & 2.4373 & 0.0174 & -0.0057 & 2.3250 & 0.1123 & -0.2261 \\
-Jump-to-ruin  & 36.0 & 4.9403 & 4.9248 & 0.0352 &  0.0155 & 4.6034 & 0.3214 & -0.2906 \\
-Jump-to-ruin  & 38.0 & 3.8946 & 3.9345 & 0.0367 & -0.0399 & 3.8155 & 0.1190 & -0.4171 \\
-Jump-to-ruin  & 40.0 & 3.2571 & 3.2770 & 0.0369 & -0.0199 & 3.2172 & 0.0598 & -0.3373 \\
-Jump-to-ruin  & 42.0 & 2.8090 & 2.7848 & 0.0365 &  0.0242 & 2.7619 & 0.0229 & -0.2846 \\
-Jump-to-ruin  & 44.0 & 2.4984 & 2.4286 & 0.0361 &  0.0698 & 2.4197 & 0.0089 & -0.1709 \\
+No jump      & 36.0 & 5.6828 & 5.6759 & 0.0231 &  0.0069 & 5.2860 & 0.3899 & -0.1519 \\
+No jump      & 38.0 & 4.6452 & 4.6125 & 0.0221 &  0.0327 & 4.3488 & 0.2637 & -0.3670 \\
+No jump      & 40.0 & 3.7436 & 3.7431 & 0.0207 &  0.0006 & 3.5881 & 0.1550 & -0.3495 \\
+No jump      & 42.0 & 3.0373 & 3.0281 & 0.0190 &  0.0092 & 2.8986 & 0.1295 & -0.2091 \\
+No jump      & 44.0 & 2.4316 & 2.4373 & 0.0174 & -0.0057 & 2.3250 & 0.1123 & -0.2261 \\
+Jump-to-ruin & 36.0 & 4.9403 & 4.9248 & 0.0352 &  0.0155 & 4.6034 & 0.3214 & -0.2906 \\
+Jump-to-ruin & 38.0 & 3.8946 & 3.9345 & 0.0367 & -0.0399 & 3.8155 & 0.1190 & -0.4171 \\
+Jump-to-ruin & 40.0 & 3.2571 & 3.2770 & 0.0369 & -0.0199 & 3.2172 & 0.0598 & -0.3373 \\
+Jump-to-ruin & 42.0 & 2.8090 & 2.7848 & 0.0365 &  0.0242 & 2.7619 & 0.0229 & -0.2846 \\
+Jump-to-ruin & 44.0 & 2.4984 & 2.4286 & 0.0361 &  0.0698 & 2.4197 & 0.0089 & -0.1709 \\
 \bottomrule
 \end{tabular}%
 }
-\caption{Jump-style extension: TVR results on the same paper-inspired matched jump grid.}
+\caption{Jump-style extension: TVR results on the same matched jump grid.}
 \label{tab:tvr-jump}
 \end{table}
 ```
 
-Table \ref{tab:tvr-jump} shows the same qualitative effect under TVR. The out-of-sample jump-to-ruin value is far above the no-jump value, and the early-exercise premium remains positive. The two methods therefore agree on the broad economic effect of introducing catastrophic downward jump risk, even though their recursive approximations differ. The boundary figures in @fig-longstaff-jump-boundary and @fig-tvr-jump-boundary support the same reading visually.In each case, the pricing workflow remains intact while only the simulator changes. This is the main point of the jump-style study: it demonstrates modularity with respect to the state dynamics.
+Table \ref{tab:tvr-jump} presents the corresponding TVR results under the same matched jump grid. The same broad economic pattern appears: option values decrease with spot, the American price stays above the European Monte Carlo reference, and the jump-to-ruin case is again generally below the no-jump case. 
 
-![Jump-style boundary comparison: TVR.](../visuals/tvr_jump_boundary_comparison.png){#fig-tvr-jump-boundary fig-pos='H'}
+The main difference is methodological rather than directional. The gap between \textit{TVR (IS)} and \textit{TVR (OOS)} is small across the table, which suggests that the fitted TVR recursion is more validation-stable in this extension than the Longstaff recursion. 
 
-@fig-tvr-jump-boundary provides the analogous TVR boundary summary. The qualitative pattern is similar: exercise tends to occur in lower stock-price regions, and the jump case alters the timing and location of exercise. The key methodological point is that both engines generate interpretable stopping behavior under the same changed dynamics.
+At the same time, the TVR prices are systematically below the corresponding Longstaff prices, so the extension continues the broader report storyline that TVR behaves as a more conservative fitted-value approximation while Longstaff is more directly tied to continuation regression on realized future cash flows. Because Tsitsiklis and Van Roy do not present this exact jump benchmark, the connection to their paper is theoretical rather than numerical. The central message is that when representative states are chosen from simulated risk-neutral trajectories, the “approximation error remains bounded.”(Tsitsiklis & Van Roy, 2001, p. 694) It is not evidence that TVR is more accurate in an absolute sense, since the jump case has no direct PDE benchmark here. Instead, it is evidence that the matched TVR implementation remains numerically coherent under changed state dynamics and can therefore serve as a meaningful comparator in the project’s extension layer. 
+
+![TVR jump extension: matched prices across spot grid and representative exercised-state summary.](../visuals/tvr_jump_boundary_comparison.png){#fig-tvr-jump-boundary fig-pos='H'}
+
+@fig-tvr-jump-boundary plays the same role for the fitted-value-iteration comparator. The top panel matches the message of Table \ref{tab:tvr-jump}: option values fall with spot, American values remain above the European Monte Carlo references, and the jump-to-ruin case again lies below the matched no-jump case. The bottom panel is especially informative because it shows that the TVR stopping policy behaves differently from the Longstaff one in the representative case $S_0 = 40$. 
+
+The no-jump exercised-state summary lies below strike but not extremely deep in the money, while the jump-to-ruin summary is much lower earlier in the horizon and then rises toward maturity. Relative to the Longstaff figure, this indicates a more selective policy: TVR tends to defer exercise until the contract is more clearly in the money, especially in the jump case. That visual evidence is consistent with the table results, where TVR produces lower out-of-sample prices and smaller early-exercise premia than Longstaff under the same contract design.
+
+The figure therefore supports that once the simulator changes, both methods remain numerically coherent, but TVR continues to behave as the more conservative continuation-based approximation, whereas Longstaff remains the more exercise-prone regression rule.
 
 \FloatBarrier
 
@@ -1011,20 +1060,31 @@ These issues matter in practice. If regression-based American pricing methods ar
 Several simplifications remain. The finite-difference solver is a one-dimensional benchmark implementation rather than a production PDE framework. The Asian-style extension has no direct PDE benchmark. The jump process is stylized. Neither pricing framework is presented as a production library. These limitations should be kept in mind when interpreting the results.
 
 ## Scope and Claims
-The scope of the project is limited and should be stated plainly. This is a study of the Longstaff--Schwartz and Tsitsiklis--Van Roy papers with computational evidence under shared testbeds. Longstaff is implemented as the main practical pricing algorithm. TVR is implemented as a matched comparator under the same simulated cases and benchmark philosophy.
+This report is a computational study of two closely related American-option pricing papers: Longstaff–Schwartz (2001) and Tsitsiklis–Van Roy (2001). The project is organized around a common implementation framework so that the two methods can be compared under shared testbeds rather than discussed as isolated algorithms. Within that framework, Longstaff–Schwartz is treated as the main practical pricing procedure, while Tsitsiklis–Van Roy is implemented as a matched comparator based on fitted value iteration.
 
-The project does not claim exact reproduction of every numerical example in either paper. The Asian-style and jump-style studies are shared extensions rather than exact replications of published tables. The project does not calibrate to market implied-volatility surfaces, does not incorporate a full production market-data workflow, and does not attempt to build a production pricing library.
+The scope is intentionally limited. The vanilla GBM American put is the main validation layer because it admits direct one-dimensional American benchmarks. The Asian-style and jump-style studies are included as shared extensions that test how the two recursion methods behave when the state vector becomes richer or the simulator changes. They are not presented as exact replications of every published numerical table, nor as full benchmark studies on the same footing as the vanilla finite-difference exercise.
 
-Within that scope, the claims are clear. The project shows how the two papers can be understood through a common computational framework, how their recursion logic differs, and how those differences appear in benchmark alignment, out-of-sample behavior, and robustness.
+Accordingly, the report does not claim market calibration, production-grade data handling, a production pricing library, or exact reproduction of every result in the original papers. Instead, it makes three narrower claims:
+
+1. The two papers can be understood coherently through a common optimal-stopping and regression-based computational framework.
+2. Their recursion logic leads to meaningfully different numerical behavior in benchmark alignment, out-of-sample validation, and robustness. 
+3. Those differences remain visible when the problem is extended beyond the one-dimensional vanilla setting. 
+
+Within that scope, the report’s contribution is not to settle which method is universally superior, but to show clearly how and why the two approaches differ in practice.
 
 ## Conclusions
-This report studies American option pricing as an optimal stopping problem through two related regression-based frameworks. Longstaff--Schwartz serves as the main empirical pricing method, and Tsitsiklis--Van Roy serves as a matched approximate-dynamic-programming comparator under the same computational design.
+This report studies American option pricing as an optimal stopping problem through two related regression-based methods. Longstaff–Schwartz is implemented as the main empirical pricing method, and Tsitsiklis–Van Roy is implemented as a matched approximate-dynamic-programming comparator under the same computational design.
 
-The shared vanilla benchmark shows that both methods can produce reasonable American put values under a common GBM testbed, but that their benchmark behavior and validation sensitivity differ. Longstaff's continuation regression on realized future cash flows leads to visible same-path optimism unless the policy is evaluated on a fresh sample. TVR's fitted value iteration, when implemented under the same design and evaluated out of sample, produces values that are generally close to the finite-difference benchmark in the tested cases.
+The main empirical conclusion comes from the shared vanilla benchmark. Under a common GBM testbed with direct American references, both methods produce economically sensible American put prices, but they do not behave the same way. Longstaff’s continuation-cash-flow regression is more sensitive to validation design and shows visible same-path optimism unless the fitted stopping rule is evaluated on an independent path set. TVR is more stable under the same out-of-sample design and tends to stay close to the finite-difference benchmark, although often with a mildly conservative bias.
 
-The shared Asian-style and jump-style studies show that both methods extend beyond the one-dimensional vanilla setting. The broader lesson is that regression-based American pricing is flexible, but its numerical performance depends on basis design, state representation, exercise-grid choice, and the way the stopping policy is validated.
+The Asian-style and jump-style studies extend that comparison beyond the one-dimensional benchmark. In the Asian case, both methods remain operational in a genuinely multistate setting, but they imply different continuation behavior and different exercise tendencies. In the jump case, both methods remain coherent after the simulator is changed, showing that the regression framework is not restricted to standard GBM dynamics. These extensions are not absolute benchmark exercises; their role is to show how the two recursion schemes behave once the problem becomes structurally richer.
+
+Taken together, the results support a clear overall conclusion. Regression-based American pricing is flexible and practically useful, but its numerical output depends on more than path count alone. Basis design, state representation, exercise-grid specification, and out-of-sample policy validation all materially affect the reported price and the implied stopping rule. Longstaff–Schwartz and Tsitsiklis–Van Roy therefore should not be viewed as interchangeable implementations of the same idea. They solve the same optimal-stopping problem through different approximation targets, and those differences appear consistently in benchmark behavior, validation stability, and extension performance under a shared computational design.
 
 ## Reproducibility / Code Execution
+The project code can be found at:
+`https://github.com/eyao0906/ACTSC971FInal`
+
 The Longstaff workflow is executed from the project root using the scripts under `src/LongstaffMethod`:
 
 ```bash
@@ -1059,3 +1119,5 @@ quarto render report/american_options_lsmc_study.qmd --to html
 Longstaff, F. A., & Schwartz, E. S. (2001). Valuing American options by simulation: A simple least-squares approach. *The Review of Financial Studies*, 14(1), 113--147.
 
 Tsitsiklis, J. N., & Van Roy, B. (2001). Regression methods for pricing complex American-style options. *IEEE Transactions on Neural Networks*, 12(4), 694--703.
+
+

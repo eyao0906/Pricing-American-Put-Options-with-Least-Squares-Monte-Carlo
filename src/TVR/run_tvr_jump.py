@@ -45,12 +45,14 @@ MODELS = [
         "sigma": 0.30,
         "jump_intensity": 0.00,
         "label": r"No jump ($\sigma=0.30,\ \lambda=0.00$)",
+        "color": "tab:blue",
     },
     {
         "model": "jump_to_ruin_matched_var",
         "sigma": 0.20,
         "jump_intensity": 0.05,
         "label": r"Jump-to-ruin ($\sigma=0.20,\ \lambda=0.05$)",
+        "color": "tab:orange",
     },
 ]
 
@@ -61,6 +63,10 @@ def put_payoff(states: dict[str, np.ndarray], t: int, strike: float = STRIKE) ->
 
 def always_exercisable(states: dict[str, np.ndarray], t: int) -> np.ndarray:
     return np.ones(states["spot"].shape[0], dtype=bool)
+
+
+def itm_only_exercisable(states: dict[str, np.ndarray], t: int, strike: float = STRIKE) -> np.ndarray:
+    return states["spot"][:, t] < strike
 
 
 def simulate_risk_neutral_jump_to_ruin_paths(
@@ -147,20 +153,21 @@ def simulate_case(spot0: float, sigma: float, jump_intensity: float, seed: int) 
 def fit_and_eval_tvr(spot0: float, sigma: float, jump_intensity: float, seed: int):
     payoff_fn = lambda states, t: put_payoff(states, t, strike=STRIKE)
     basis_fn = lambda states, t: vanilla_put_basis(states["spot"][:, t], strike=STRIKE, basis_size=4)
+    exercise_fn = always_exercisable
 
-    fit_states = simulate_case(spot0, sigma, jump_intensity, seed)
+    fit_sim = simulate_case(spot0, sigma, jump_intensity, seed)
     in_result, policy = fit_tvr(
-        states=fit_states.states,
+        states=fit_sim.states,
         payoff_fn=payoff_fn,
         basis_fn=basis_fn,
-        exercise_mask_fn=always_exercisable,
+        exercise_mask_fn=exercise_fn,
         r=RISK_FREE,
         maturity=MATURITY,
     )
     eval_seed = seed + 7919
-    eval_states = simulate_case(spot0, sigma, jump_intensity, eval_seed)
-    out_price, out_stderr, _, _ = policy.evaluate(eval_states.states, r=RISK_FREE)
-    euro_mc = float(np.exp(-RISK_FREE * MATURITY) * put_payoff(eval_states.states, STEPS).mean())
+    eval_sim = simulate_case(spot0, sigma, jump_intensity, eval_seed)
+    out_price, out_stderr, stopping_times, discounted = policy.evaluate(eval_sim.states, r=RISK_FREE)
+    euro_mc = float(np.exp(-RISK_FREE * MATURITY) * put_payoff(eval_sim.states, STEPS).mean())
     diagnostics = {
         "fit_seed": seed,
         "eval_seed": eval_seed,
@@ -170,44 +177,69 @@ def fit_and_eval_tvr(spot0: float, sigma: float, jump_intensity: float, seed: in
         "eval_stderr": out_stderr,
         "european_mc": euro_mc,
     }
-    return in_result, diagnostics, policy
+    return in_result, diagnostics, eval_sim.states, stopping_times
 
 
 def case_seed(model_idx: int, spot_idx: int) -> int:
     return BASE_SEED + 1000 * model_idx + 100 * spot_idx + 1
 
 
-def regression_boundary_series(policy, strike: float = STRIKE, upper_mult: float = 1.25, grid_size: int = 1000) -> pd.DataFrame:
-    grid = np.linspace(1e-6 * strike, upper_mult * strike, grid_size)
+def empirical_exercise_summary(states: dict[str, np.ndarray], stopping_times: np.ndarray, strike: float = STRIKE) -> pd.DataFrame:
+    spot = states["spot"]
+    n_paths, n_steps_plus_one = spot.shape
+    steps = n_steps_plus_one - 1
+    dt = MATURITY / steps
     rows: list[dict[str, float]] = []
-    dt = policy.dt
-    for t, beta in sorted(policy.regression_map.items()):
-        beta = np.asarray(beta, dtype=float)
-        basis = vanilla_put_basis(grid, strike=strike, basis_size=beta.shape[0])
-        continuation = basis @ beta
-        intrinsic = np.maximum(strike - grid, 0.0)
-        itm = grid <= strike
-        diff = continuation[itm] - intrinsic[itm]
-        g = grid[itm]
-        idx = np.where(diff <= 0.0)[0]
+    for t in range(1, steps):
+        idx = np.where((stopping_times == t) & (spot[:, t] < strike))[0]
         if idx.size == 0:
-            boundary = np.nan
-        else:
-            k = idx[-1]
-            boundary = float(g[k])
-            if k < len(g) - 1 and diff[k] <= 0.0 <= diff[k + 1] and diff[k + 1] != diff[k]:
-                x1, x2 = g[k], g[k + 1]
-                y1, y2 = diff[k], diff[k + 1]
-                boundary = float(x1 + (0.0 - y1) * (x2 - x1) / (y2 - y1))
+            continue
+        exercised_spot = spot[idx, t]
         rows.append(
             {
-                "time_index": float(t),
+                "time_index": int(t),
                 "time": float(t * dt),
-                "boundary": boundary,
-                "boundary_ratio": boundary / strike if np.isfinite(boundary) else np.nan,
+                "exercise_count": int(idx.size),
+                "exercise_share": float(idx.size / n_paths),
+                "spot_mean": float(np.mean(exercised_spot)),
+                "spot_min": float(np.min(exercised_spot)),
+                "spot_max": float(np.max(exercised_spot)),
+                "spot_mean_ratio": float(np.mean(exercised_spot) / strike),
+                "spot_min_ratio": float(np.min(exercised_spot) / strike),
+                "spot_max_ratio": float(np.max(exercised_spot) / strike),
             }
         )
     return pd.DataFrame(rows)
+
+
+def _plot_price_panel(ax: plt.Axes, benchmark_df: pd.DataFrame) -> None:
+    for spec in MODELS:
+        sub = benchmark_df[benchmark_df["model"] == spec["model"]].sort_values("spot0")
+        ax.plot(sub["spot0"], sub["american_jump_tvr_oos"], marker="o", color=spec["color"], label=f"{spec['label']} American")
+        ax.plot(sub["spot0"], sub["european_jump_mc"], linestyle="--", marker="o", color=spec["color"], alpha=0.7, label=f"{spec['label']} European")
+    ax.set_ylabel("Option value")
+    ax.set_title("TVR jump extension: matched prices across spot grid")
+    ax.grid(alpha=0.2)
+    ax.legend(loc="best", fontsize=9)
+
+
+def _plot_empirical_panel(ax: plt.Axes, summaries: dict[str, pd.DataFrame]) -> None:
+    for spec in MODELS:
+        df = summaries.get(spec["model"])
+        if df is None or df.empty:
+            continue
+        ax.plot(df["time"], df["spot_mean_ratio"], marker="o", color=spec["color"], label=spec["label"])
+        ax.fill_between(
+            df["time"].to_numpy(),
+            df["spot_min_ratio"].to_numpy(),
+            df["spot_max_ratio"].to_numpy(),
+            color=spec["color"],
+            alpha=0.12,
+        )
+    ax.set_xlabel("Time")
+    ax.set_ylabel(r"Exercised spot ratio $S_\tau/K$")
+    ax.set_title(f"Representative case $S_0={REP_SPOT}$: exercised-state summary")
+    ax.grid(alpha=0.2)
 
 
 def run_benchmark() -> pd.DataFrame:
@@ -218,12 +250,14 @@ def run_benchmark() -> pd.DataFrame:
     longstaff_df = pd.read_csv(longstaff_path) if longstaff_path.exists() else None
 
     rows = []
-    rep_boundaries: dict[str, pd.DataFrame] = {}
+    rep_empirical: dict[str, pd.DataFrame] = {}
 
     for model_idx, spec in enumerate(MODELS):
         for spot_idx, spot0 in enumerate(SPOTS):
             seed = case_seed(model_idx, spot_idx)
-            in_result, diagnostics, policy = fit_and_eval_tvr(spot0, spec["sigma"], spec["jump_intensity"], seed)
+            in_result, diagnostics, eval_states, stopping_times = fit_and_eval_tvr(
+                spot0, spec["sigma"], spec["jump_intensity"], seed
+            )
             longstaff_price = np.nan
             if longstaff_df is not None:
                 match = longstaff_df[(longstaff_df["model"] == spec["model"]) & (longstaff_df["spot0"] == spot0)]
@@ -253,33 +287,29 @@ def run_benchmark() -> pd.DataFrame:
                 }
             )
             if spot0 == REP_SPOT:
-                rep_boundaries[spec["model"]] = regression_boundary_series(policy)
+                rep_empirical[spec["model"]] = empirical_exercise_summary(eval_states, stopping_times)
 
     df = pd.DataFrame(rows).sort_values(["model", "spot0"]).reset_index(drop=True)
     df.to_csv(OUTPUT_DIR / "tvr_jump_benchmark.csv", index=False)
     df.to_csv(OUTPUT_DIR / "tvr_jump_results.csv", index=False)
 
-    plt.figure(figsize=(8, 5))
     for spec in MODELS:
-        boundary_df = rep_boundaries.get(spec["model"])
-        if boundary_df is not None and not boundary_df.empty:
-            plt.plot(boundary_df["time"], boundary_df["boundary_ratio"], marker="o", label=spec["label"])
-            boundary_df.assign(model=spec["model"]).to_csv(OUTPUT_DIR / f"{spec['model']}_tvr_jump_boundary.csv", index=False)
-    plt.xlabel("Time")
-    plt.ylabel(r"Critical exercise boundary $S^*/K$")
-    plt.title("Paper-inspired matched jump benchmark: TVR")
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(VISUALS_DIR / "tvr_jump_boundary_comparison.png", dpi=180)
-    plt.close()
+        empirical_df = rep_empirical.get(spec["model"])
+        if empirical_df is not None and not empirical_df.empty:
+            empirical_df.assign(model=spec["model"]).to_csv(
+                OUTPUT_DIR / f"{spec['model']}_tvr_jump_empirical.csv", index=False
+            )
+
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 7), height_ratios=[1.05, 1.0], sharex=False)
+    _plot_price_panel(ax1, df)
+    _plot_empirical_panel(ax2, rep_empirical)
+    fig.tight_layout()
+    fig.savefig(VISUALS_DIR / "tvr_jump_boundary_comparison.png", dpi=180)
+    plt.close(fig)
 
     print(df.round(6).to_string(index=False))
     return df
 
 
-def main() -> None:
-    run_benchmark()
-
-
 if __name__ == "__main__":
-    main()
+    run_benchmark()

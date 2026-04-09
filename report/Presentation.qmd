@@ -21,7 +21,7 @@ fontsize: 12pt
 
 ## Project Objective
 
-## Introduction
+## Introduction 12
 
 ## American options and Monte Carlo methods
 

@@ -1,0 +1,527 @@
+AMERICAN OPTION PRICING PROJECT — FINAL MINUTES / LLM HANDOFF
+Generated: 2026-04-09
+Purpose: This file is a cold-start handoff for any LLM agent to understand the current near-final state of the ACTSC 971 project without relying on earlier chat history.
+
+================================================================================
+1. PROJECT IDENTITY / COURSE CONTEXT
+================================================================================
+
+Course:
+- ACTSC 971 – Winter 2026.
+
+Project type:
+- Written report + code-based quantitative finance study.
+- This is NOT just a coding exercise. The final deliverable is a finance + quantitative methods report with:
+  1) financial context,
+  2) mathematical setup,
+  3) computational implementation,
+  4) testing / validation,
+  5) critical assessment,
+  6) professional structure and writing.
+
+Selected topic:
+- American option pricing through regression-based simulation methods.
+
+Selected core papers:
+1) Longstaff & Schwartz (2001)
+   "Valuing American Options by Simulation: A Simple Least-Squares Approach"
+2) Tsitsiklis & Van Roy (2001)
+   "Regression Methods for Pricing Complex American-Style Options"
+
+Current project positioning:
+- Longstaff–Schwartz = main practical empirical pricing method.
+- Tsitsiklis–Van Roy (TVR) = matched approximate-dynamic-programming comparator.
+- The project compares the two under shared testbeds so numerical differences can be interpreted as methodological differences rather than differences in case construction.
+
+================================================================================
+2. FINAL PROJECT SCOPE (IMPORTANT)
+================================================================================
+
+The scope is now much clearer and more polished than in the early prototype stage.
+
+Main validation layer:
+- Vanilla American put under risk-neutral GBM.
+- This is the MAIN validation study because it admits direct one-dimensional American benchmarks.
+
+Benchmark layer in vanilla:
+- Black–Scholes European put = lower reference.
+- Implicit finite-difference American put = PRIMARY direct American benchmark.
+- CRR binomial American put = auxiliary consistency check.
+
+Shared extensions:
+1) Asian-style extension
+   - American–Bermuda–Asian put.
+   - Two-state setting: current spot + running arithmetic average.
+   - Lockout period and pre-started average.
+   - Purpose: move from one-state vanilla to a multistate continuation problem where regression methods have clearer comparative value.
+   - This is a matched multistate extension study, NOT a PDE-benchmarked replication.
+
+2) Jump-style extension
+   - Vanilla American put payoff but changed simulator.
+   - Matched no-jump vs jump-to-ruin comparison.
+   - Purpose: test model flexibility under changed dynamics while keeping the regression-and-backward-induction workflow intact.
+   - This is a matched structural extension study, NOT a second direct benchmark study like vanilla.
+
+What the project explicitly does NOT claim:
+- Not exact reproduction of every numerical table in the papers.
+- Not a market-calibrated or production-grade pricing study.
+- Not a production pricing library.
+- Asian and jump sections are NOT absolute accuracy studies on the same level as the vanilla finite-difference benchmark.
+
+================================================================================
+3. CURRENT REPORT STRUCTURE (FINAL OR NEAR-FINAL)
+================================================================================
+
+The report now has the following structure:
+
+1. Introduction
+2. Problem setup: American option pricing as an optimal stopping problem
+3. Risk-neutral model and benchmark pricing framework
+4. Longstaff–Schwartz (2001): paper walkthrough and intuition
+5. Tsitsiklis–Van Roy (2001): paper walkthrough and intuition
+6. Conceptual comparison of the two papers
+   6.1 Basis functions and approximation viewpoint
+7. Experimental design
+8. Integrated implementation workflow and code design
+   8.1 Benchmark layer
+9. Results
+   9.1 Shared vanilla benchmark
+   9.2 Vanilla exercise-policy interpretation
+   9.3 Shared robustness analysis
+   9.4 Asian-style extension
+   9.5 Jump-style extension
+   9.6 Direct Longstaff vs TVR comparison
+10. Implementation and testing
+   10.1 Convergence and validation perspective
+11. Critical assessment: strengths, weaknesses, and practical risks
+12. Scope and claims
+13. Conclusions
+14. Reproducibility / code execution
+15. References
+
+This structure is deliberate:
+- Vanilla = main direct validation layer.
+- Asian and jump = matched extension layers.
+- Implementation/testing and critical assessment are explicit, not hidden.
+
+================================================================================
+4. EXPERIMENTAL HIERARCHY / CORE LOGIC
+================================================================================
+
+The experimental hierarchy should be understood exactly like this:
+
+European BS lower reference
+→ Direct American benchmarks (FD, CRR) in vanilla
+→ Regression-based methods (Longstaff, TVR)
+→ Robustness analysis
+→ Shared extensions (Asian, jump)
+
+Key interpretation rule:
+- Only the vanilla study has direct American benchmark validation.
+- Asian and jump are comparative extension studies, not direct ground-truth exercises.
+
+This hierarchy is one of the strongest conceptual features of the project and should NOT be broken by future edits.
+
+================================================================================
+5. FINAL METHODOLOGICAL STORYLINE
+================================================================================
+
+Longstaff–Schwartz:
+- Regresses discounted realized future cash flows on functions of current state.
+- Main practical empirical algorithm.
+- More directly tied to stopping-rule construction.
+- In the project results, it is more sensitive to validation design and approximation design.
+
+TVR:
+- Regresses discounted next-step estimated values / fitted value iteration.
+- Main matched comparator.
+- More clearly approximate-dynamic-programming in interpretation.
+- In the project results, it is more validation-stable but often mildly conservative in benchmark alignment.
+
+Core comparison takeaway:
+- The two methods solve the same optimal-stopping problem under the same shared testbeds, but they do not behave identically numerically.
+- Longstaff is the more direct and practical continuation-regression method, but more sensitive to fit/eval separation and design choices.
+- TVR is more stable under out-of-sample evaluation, but often behaves as the more conservative fitted approximation.
+
+================================================================================
+6. CURRENT IMPLEMENTATION DESIGN
+================================================================================
+
+Project execution now uses dedicated method-specific workflows rather than the early AAPL prototype scripts.
+
+Longstaff scripts:
+- src/LongstaffMethod/run_longstaff_vanilla.py
+- src/LongstaffMethod/run_longstaff_asian.py
+- src/LongstaffMethod/run_longstaff_jump.py
+
+TVR scripts:
+- src/TVR/run_tvr_vanilla.py
+- src/TVR/run_tvr_asian.py
+- src/TVR/run_tvr_jump.py
+
+Outputs:
+- outputs/ for CSV results
+- visuals/ for plots
+- report/american_options_lsmc_study.qmd for report source
+- report/american_options_lsmc_study.pdf for rendered report
+- SupportFiles/ for revision notes / scratch files where applicable
+
+IMPORTANT:
+- The project is NO LONGER the early AAPL historical-calibration study.
+- The earlier AAPL prototype / yfinance / ^IRX setup belongs to the old prototype stage and should not be used to describe the current final report unless explicitly discussing project history.
+- The final report is based on shared synthetic testbeds, not market-data-based calibration.
+
+================================================================================
+7. VANILLA BENCHMARK — FINAL SCOPE
+================================================================================
+
+Shared synthetic vanilla benchmark:
+- Strike K = 40
+- Risk-free rate r = 0.06
+- Spot grid S0 in {36, 38, 40, 42, 44}
+- Volatility grid sigma in {0.20, 0.40}
+- Maturity grid T in {1, 2}
+- 50 exercise dates per year
+- 100,000 total simulated paths (50,000 base + 50,000 antithetic)
+
+Longstaff vanilla:
+- Uses weighted Laguerre basis in normalized spot.
+- Uses in-the-money regression.
+- Uses two-pass / out-of-sample policy evaluation in the main benchmark.
+- Robustness studies include:
+  - in-sample vs out-of-sample
+  - path sensitivity
+  - exercise-grid sensitivity
+  - basis sensitivity
+  - seed sensitivity
+
+TVR vanilla:
+- Uses matched approximation complexity.
+- Uses the same synthetic grid and benchmarking philosophy.
+- Evaluated out of sample.
+- Robustness studies include:
+  - in-sample vs out-of-sample
+  - path sensitivity
+  - timestep sensitivity
+  - basis sensitivity
+
+Main vanilla findings:
+- Both methods produce economically sensible American put values.
+- Longstaff can lie above or below FD depending on the case.
+- TVR tends to remain close to FD and often slightly below it.
+- Longstaff shows visible same-path optimism without independent evaluation.
+- TVR shows much tighter fit-versus-evaluation behavior.
+
+================================================================================
+8. ASIAN EXTENSION — FINAL SCOPE
+================================================================================
+
+Purpose:
+- Move from one-state vanilla to a richer continuation problem with two state variables.
+
+Contract design:
+- American–Bermuda–Asian put
+- Strike K = 100
+- r = 0.06
+- sigma = 0.20
+- T = 2
+- Lockout = 0.25 years
+- Pre-averaging time = 0.25 years
+- 100 exercise dates per year
+- 50,000 total paths
+
+State variables:
+- Current spot S_t
+- Running arithmetic average A_t
+- Average is pre-started before valuation using initial average A0
+
+Grid:
+- Initial average A0 in {90, 100, 110}
+- Spot0 in {80, 90, 100, 110, 120}
+
+Interpretation rule:
+- This is a matched multistate comparison, NOT a direct PDE benchmark exercise.
+- Longstaff and TVR are compared on the same contract scope.
+- Differences should be interpreted as methodological / policy-behavior differences.
+
+Main Asian findings:
+- Both methods show correct comparative statics.
+- Longstaff fit-vs-eval gaps remain clearly positive.
+- TVR fit-vs-eval gaps are much smaller.
+- TVR often gives materially higher out-of-sample values and larger early-exercise premia.
+- Asian scatter/state-cloud visuals are used as comparative exercise-policy evidence, not as exact free boundaries.
+- Longstaff appears more exercise-prone in borderline states.
+- TVR appears more continuation-oriented.
+
+================================================================================
+9. JUMP EXTENSION — FINAL SCOPE
+================================================================================
+
+IMPORTANT: older jump versions must be ignored.
+The current final jump section is NOT the early:
+- no_jump_gbm vs jump_to_ruin with very high intensity,
+- nor the old “boundary comparison” interpretation.
+
+Current final jump study:
+- matched paper-inspired extension
+- same vanilla American put payoff, but changed simulator
+
+Matched jump design:
+- K = 40
+- r = 0.06
+- T = 1
+- 26 exercise dates per year
+- 50,000 total paths
+- Spot grid S0 in {36, 38, 40, 42, 44}
+
+Two matched model cases:
+1) No jump matched variance:
+   - sigma = 0.30
+   - lambda = 0.00
+2) Jump-to-ruin matched variance:
+   - sigma = 0.20
+   - lambda = 0.05
+
+Jump process:
+- stylized jump-to-ruin under risk-neutral measure
+- drift uses the paper-style martingale correction (r + lambda)
+- when a jump occurs, stock is sent to zero and stays there
+
+Interpretation rule:
+- This is a structural extension study.
+- It is NOT a direct PDE benchmark exercise.
+- It is designed to test whether the workflows remain coherent when dynamics change.
+
+Current jump visuals:
+- They are NO LONGER true “boundary” plots in the old sense.
+- The revised jump figures are:
+  top panel = matched price comparison across spot grid
+  bottom panel = empirical exercised-state summary for representative case S0 = 40
+- Captions and text should describe them that way.
+
+Main jump findings:
+- Option values fall with spot.
+- American values remain above European MC values.
+- In the matched design, jump-to-ruin values are generally lower than matched no-jump values because the lower diffusion volatility dominates.
+- This matches the direction of the Longstaff jump comparison under the matched setup.
+- Longstaff remains more exercise-prone.
+- TVR remains more conservative / validation-stable.
+
+================================================================================
+10. FIGURES / HOW TO INTERPRET THEM
+================================================================================
+
+Vanilla:
+- Longstaff benchmark comparison plot
+- TVR benchmark comparison plot
+- Longstaff empirical exercise-boundary summary plot
+Interpretation:
+- vanilla figures support benchmark alignment and exercise-policy plausibility.
+
+Asian:
+- longstaff_asian_state_scatter.png
+- tvr_asian_state_scatter.png
+Interpretation:
+- state-space snapshots of exercise behavior in representative case
+- comparative policy evidence only
+- NOT exact theoretical boundaries
+
+Jump:
+- longstaff_jump_boundary_comparison.png
+- tvr_jump_boundary_comparison.png
+Despite filename, current meaning is:
+- matched prices across spot grid (top panel)
+- representative exercised-state summary (bottom panel)
+Interpretation:
+- top: confirms table rankings
+- bottom: summarizes stopping behavior in representative jump case
+- NOT exact structural free-boundary plots
+
+IMPORTANT:
+- Do not reintroduce stale wording like “jump-style boundary comparison” unless it is updated to reflect the current two-panel price/exercised-state visual.
+
+================================================================================
+11. RESULTS SECTION — FINAL POSITIONING
+================================================================================
+
+The Results section should now be read like this:
+
+9.1 Shared vanilla benchmark
+- main direct validation section
+- benchmark against FD / CRR / BS
+- establishes numerical reasonableness
+
+9.2 Vanilla exercise-policy interpretation
+- qualitative Longstaff policy evidence in vanilla
+- not overclaimed as exact theoretical boundary
+
+9.3 Shared robustness analysis
+- integral to implementation argument
+- not cosmetic appendix material
+- shows sensitivity to:
+  - validation design
+  - paths
+  - exercise grid
+  - basis size
+  - seeds (Longstaff)
+
+9.4 Asian-style extension
+- matched multistate extension
+- continuation now depends on spot + average
+- no direct PDE benchmark
+- comparative policy/price study only
+
+9.5 Jump-style extension
+- matched changed-dynamics extension
+- no direct PDE benchmark
+- comparative price/policy study only
+
+9.6 Direct Longstaff vs TVR comparison
+- tightened wrap-up of Results
+- should summarize the contrast without repeating every earlier paragraph
+
+Current final comparison takeaway:
+- Longstaff = practical continuation-regression method, less uniform benchmark error, more sensitive to fit/eval separation and stopping-rule design
+- TVR = value-approximation comparator, closer fit/eval stability, often slightly conservative, more continuation-oriented in extensions
+
+================================================================================
+12. IMPLEMENTATION AND TESTING — FINAL CLAIM
+================================================================================
+
+This section is important and should not be reduced to generic comments.
+
+The project does NOT claim strict numerical convergence proofs.
+Instead, it uses paper-level convergence / error-control ideas to motivate a careful empirical workflow:
+- direct benchmarking where possible,
+- out-of-sample policy evaluation,
+- matched testbeds across methods,
+- explicit robustness checks where approximation design matters.
+
+This is one of the strongest parts of the report.
+If another LLM edits this section, it should preserve the distinction between:
+- asymptotic ideas from the papers,
+- and finite-sample empirical validation in this project.
+
+================================================================================
+13. CRITICAL ASSESSMENT / FINAL CLAIMS
+================================================================================
+
+Current final critical-assessment stance:
+- both methods are useful and flexible
+- both are numerically sensitive
+- basis choice matters
+- exercise-grid design matters
+- validation design matters
+- institutions could misprice early-exercise features through poor basis specification, unstable fits, weak benchmarking, or in-sample reliance
+
+Limitations that must remain explicit:
+- FD benchmark is one-dimensional benchmark implementation, not production PDE framework
+- Asian extension has no direct PDE benchmark
+- jump process is stylized
+- neither framework is presented as a production pricing library
+- no market calibration / implied-vol surface / production data pipeline
+
+================================================================================
+14. CURRENT STATUS OF THE PROJECT
+================================================================================
+
+Project status:
+- Report is near-final and conceptually coherent.
+- Major structural / methodological decisions have already been made.
+- This is no longer a prototype rescue job.
+- Remaining work is primarily polish, consistency, and presentation cleanup.
+
+Recent important cleanups already incorporated:
+- shared synthetic testbeds rather than AAPL prototype framing
+- FD/CRR/BS benchmark layer in vanilla
+- two-pass out-of-sample Longstaff evaluation
+- matched TVR comparator
+- Asian extension upgraded to matched paper-inspired multistate study
+- jump extension upgraded and then reframed to avoid overclaiming structural boundaries
+- tightened Scope and Claims / Conclusions / Direct Comparison wording
+
+================================================================================
+15. DO-NOT-REVERT LIST
+================================================================================
+
+Future LLMs should NOT revert the project back to older stale states.
+
+Do NOT revert to:
+- AAPL / historical-vol / yfinance as the main project framing
+- old jump tables with:
+  - no_jump_gbm
+  - jump_intensity = 0.4
+  - huge jump prices
+- old jump figure interpretation as exact or quasi-exact boundary curves
+- claim that Asian or jump sections are benchmarked on the same footing as vanilla
+- claim that TVR is universally superior
+- claim exact reproduction of every numerical paper table
+- overstate production realism
+
+================================================================================
+16. REMAINING POLISH TASKS (IF NEEDED)
+================================================================================
+
+If another LLM is asked to do final cleanup, priorities should be:
+
+1) Consistency / style cleanup
+- ensure all figure captions match actual current visuals
+- ensure jump figure captions describe price + exercised-state summary
+- ensure no stale old jump wording survives
+- ensure Asian and jump math notation renders cleanly
+
+2) Final wording polish
+- keep Results tight and non-repetitive
+- keep direct Longstaff vs TVR comparison concise
+- keep Scope and Claims explicit and modest
+- keep Conclusions decisive but not overclaiming
+
+3) Presentation handoff
+- slides should mirror the final report hierarchy:
+  vanilla validation first, then robustness, then Asian, then jump, then comparison, then critical assessment
+
+================================================================================
+17. RECOMMENDED ONE-PARAGRAPH POSITIONING FOR ANY LLM
+================================================================================
+
+Use wording close to this:
+
+"This project studies American put pricing as an optimal stopping problem through two related regression-based frameworks. Longstaff–Schwartz is implemented as the main practical least-squares Monte Carlo method, and Tsitsiklis–Van Roy is implemented as a matched fitted-value-iteration comparator under shared synthetic testbeds. The vanilla GBM American put serves as the main validation layer through Black–Scholes, finite-difference, and CRR benchmarks, while Asian-style and jump-style studies serve as matched structural extensions rather than direct benchmark replications. The central contribution is to show how the two recursion schemes differ in benchmark alignment, out-of-sample validation behavior, robustness, and extension performance under a common computational design."
+
+================================================================================
+18. REPRODUCIBILITY / EXECUTION
+================================================================================
+
+From project root:
+
+Longstaff:
+- python src/LongstaffMethod/run_longstaff_vanilla.py
+- python src/LongstaffMethod/run_longstaff_asian.py
+- python src/LongstaffMethod/run_longstaff_jump.py
+
+TVR:
+- python src/TVR/run_tvr_vanilla.py
+- python src/TVR/run_tvr_asian.py
+- python src/TVR/run_tvr_jump.py
+
+Render report:
+- quarto render report/american_options_lsmc_study.qmd --to pdf
+or
+- quarto render report/american_options_lsmc_study.qmd --to html
+
+================================================================================
+19. FINAL BOTTOM LINE
+================================================================================
+
+This project is now best understood as:
+- a careful course-project study of two American-option pricing papers,
+- with one strong direct benchmark layer (vanilla),
+- two matched methodological extension layers (Asian and jump),
+- a meaningful implementation/testing section,
+- and an explicit critical assessment of approximation risk and validation design.
+
+If another LLM is asked to continue the project, it should preserve:
+- the benchmark hierarchy,
+- the modest scope claims,
+- the Longstaff vs TVR methodological contrast,
+- and the distinction between direct validation (vanilla) and structural extensions (Asian/jump).

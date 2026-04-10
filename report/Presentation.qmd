@@ -1,6 +1,6 @@
 ---
 title: "Pricing American Put Options with Least-Squares Monte Carlo"
-subtitle: "A Study of Longstaff--Schwartz and Tsitsiklis--Van Roy"
+subtitle: "Longstaff--Schwartz vs. Tsitsiklis--Van Roy under a shared benchmark design"
 author: "Ethan Yao"
 format:
   beamer:
@@ -9,112 +9,382 @@ format:
     header-includes: |
       \setbeamertemplate{itemize items}[circle]
       \setbeamertemplate{footline}[frame number]
-      \definecolor{BgColor}{HTML}{FDF6E3}   % Previous slide color
-      \definecolor{TextColor}{HTML}{2B2B2B} % Dark grey text (softer than pure black)
+      \definecolor{BgColor}{HTML}{FDF6E3}
+      \definecolor{TextColor}{HTML}{2B2B2B}
+      \definecolor{Accent}{HTML}{2E6F95}
       \setbeamercolor{background canvas}{bg=BgColor}
       \setbeamercolor{normal text}{fg=TextColor}
+      \setbeamercolor{structure}{fg=Accent}
       \usebeamercolor[fg]{normal text}
-
-# Font size goes at the root level, outside the 'format' block
-fontsize: 12pt
+      \usepackage{booktabs}
+      \usepackage{array}
+      \usepackage{graphicx}
+      \usepackage{adjustbox}
+fontsize: 11pt
 ---
 
-## Project Objective
+## Why this project matters
 
-## Introduction 12
+- American option pricing is an **optimal stopping** problem.
+- Need both:
+  - a price,
+  - an exercise rule.
+- Direct trees / PDE methods work well in **simple 1D settings**.
+- Richer contracts quickly create problems with:
+  - larger state spaces,
+  - path dependence,
+  - changed dynamics.
+- This project studies two regression-based simulation methods under **one common design**.
 
-## American options and Monte Carlo methods
+**Goal:** compare methodology, not mismatched case studies.
 
-## Longstaff--Schwartz (2001) method
-- **Key idea:** Use least-squares regression to estimate the continuation value of the option at each exercise date.
-- **Steps:**
-  1. Simulate multiple paths of the underlying asset price using Monte Carlo methods.
-  2. At each exercise date, regress the discounted future payoffs on a set of basis functions of the underlying asset price to estimate the continuation value.
-  3. Determine the optimal exercise strategy by comparing the immediate exercise payoff with the estimated continuation value.
-- **Advantages:**
-  - Can handle high-dimensional problems and complex payoff structures.
-  - Provides a flexible framework for pricing American options.
-- **Limitations:**
-  - The choice of basis functions can significantly affect the accuracy of the estimates.
-  - May require a large number of simulations to achieve accurate results, especially for options with long maturities or high volatility.
+## Methods compared
 
-## Tsitsiklis--Van Roy (2001) method
-- **Key idea:** Use regression methods to directly approximate the value function of the option, rather than the continuation value.
-- **Steps:**
-  1. Simulate multiple paths of the underlying asset price using Monte Carlo methods.
-  2. At each exercise date, regress the discounted future payoffs on a set of basis functions of the underlying asset price to estimate the value function.
-  3. Determine the optimal exercise strategy by comparing the immediate exercise payoff with the estimated value function.
-- **Advantages:**
-  - Can be more efficient than the Longstaff--Schwartz method in certain cases, especially when the payoff structure is simpler.
-  - Provides a direct approximation of the option's value, which can be useful for risk management and hedging purposes.
-- **Limitations:**
-  - Similar to the Longstaff--Schwartz method, the choice of basis functions can significantly affect the accuracy of the estimates.
-  - May also require a large number of simulations to achieve accurate results, particularly for options with complex payoff structures or long maturities.
-  - Exponential blowup in the number of basis functions needed for accurate approximation as the dimensionality of the problem increases, which can lead to computational challenges.
+:::: {.columns}
+::: {.column width="50%"}
+**Longstaff--Schwartz (LSM)**
 
-## Conceptual comparison
+- Regress **discounted realized future cash flows**
+- Builds a stopping rule from estimated continuation values
+- Main practical pricing method in this project
+:::
 
-## Basis functions and regression techniques
-- **Basis functions:** Common choices include polynomials, splines, and orthogonal functions. The choice of basis functions can significantly impact the accuracy of the estimates, and may require experimentation to find the best fit for a given problem.
-- **Regression techniques:** Both methods typically use least-squares regression to estimate the continuation value or value function. However, alternative regression techniques, such as ridge regression or lasso regression, can be employed to improve the stability and accuracy of the estimates, especially in high-dimensional settings or when the number of basis functions is large.
+::: {.column width="50%"}
+**Tsitsiklis--Van Roy (TVR)**
 
-## Basis Functions in Longstaff--Schwartz
-- **Common choices:** Polynomials (e.g., linear, quadratic, cubic), splines, and orthogonal functions (e.g., Hermite polynomials).
-- **Impact on accuracy:** The choice of basis functions can significantly affect the accuracy of the estimates. For example, using too few basis functions may lead to underfitting, while using too many can lead to overfitting and increased computational complexity. It is often necessary to experiment with different sets of basis functions to find the best fit for a given problem.
+- Regress **discounted next-step estimated values**
+- Fitted value iteration / approximate dynamic programming
+- Matched comparator under the same testbeds
+:::
+::::
 
-## Basis Functions in Tsitsiklis--Van Roy
-- **Common choices:** Similar to the Longstaff--Schwartz method, common basis functions include polynomials, splines, and orthogonal functions. However, since the Tsitsiklis--Van Roy method directly approximates the value function, the choice of basis functions may need to be more carefully considered to capture the relevant features of the option's value, especially in cases with complex payoff structures or high-dimensional problems.
-- **Impact on accuracy:** As with the Longstaff--Schwartz method, the choice of basis functions can significantly affect the accuracy of the estimates. In the Tsitsiklis--Van Roy method, the accuracy of the value function approximation can be particularly sensitive to the choice of basis functions, as it directly impacts the estimation of the option's value and the resulting exercise strategy.
+$$
+V_i(s)=\max\{h(s),\;C_i(s)\}
+$$
 
-##  Experimental Design
-- **Objective:** To compare the performance of the Longstaff--Schwartz and Tsitsiklis--Van Roy methods in pricing American vanilla put options, American-Asian-Bermudan options, and American options on assets which follow jump-diffusion processes.
+**Key difference:** same Bellman problem, different recursion target.
 
+## Experimental design: one benchmark layer, two extensions
 
-## Intgerated Implementation Workflow
+- **Main validation layer:** vanilla American put under risk-neutral GBM
+- **Shared inputs:**
+  - $K=40$, $r=0.06$
+  - $S_0\in\{36,38,40,42,44\}$
+  - $\sigma\in\{0.20,0.40\}$
+  - $T\in\{1,2\}$
+  - 50 exercise dates / year
+  - 100,000 paths
+- **Extensions:**
+  - **Asian-style:** richer state vector $(S_t,A_t)$
+  - **Jump-style:** changed simulator dynamics
 
-## Benchmark - What the reference methods are and why
+**Design rule:** vanilla is the benchmark exercise; Asian and jump are structural extensions.
 
-#### Black-Scholes for European options
+## Benchmark hierarchy and implementation workflow
 
-#### Implicit finite difference method for American options
+$$
+\text{European BS lower reference}
+\rightarrow
+\text{Direct American benchmarks (FD, CRR)}
+\rightarrow
+\text{Longstaff / TVR}
+\rightarrow
+\text{Robustness + extensions}
+$$
 
-#### Auxiliary method - CRR binomial tree method for American options
+- Shared pieces wherever possible:
+  - simulator,
+  - basis construction,
+  - benchmark logic.
+- Different pieces:
+  - **LSM:** continuation-cash-flow regression,
+  - **TVR:** fitted value recursion.
+- In both methods, the fitted policy is then **evaluated on fresh paths**.
 
-## Results
+**Why this matters:** same environment, different recursion logic.
 
-## Vanilla Benchmark
-Changing this to demonstrate changes
-## Exercise Policy Comparison
+## Vanilla benchmark: methods are sensible, but not interchangeable
 
-## Robustness Analysis
+```{=latex}
+\small
+\centering
+\begin{tabular}{lrrrr}
+\toprule
+Case & FD & LSMC (OOS) & TVR (OOS) & Pattern \\
+\midrule
+$S_0=36,\ \sigma=0.2,\ T=1$ & 4.463 & 4.206 & 4.385 & TVR closer \\
+$S_0=40,\ \sigma=0.2,\ T=1$ & 2.299 & 2.444 & 2.278 & LSM high, TVR close \\
+$S_0=40,\ \sigma=0.2,\ T=2$ & 2.873 & 2.727 & 2.829 & both reasonable \\
+$S_0=40,\ \sigma=0.4,\ T=2$ & 6.897 & 6.971 & 6.859 & both close \\
+$S_0=44,\ \sigma=0.4,\ T=1$ & 3.924 & 4.132 & 3.838 & LSM high, TVR low \\
+\bottomrule
+\end{tabular}
+```
 
-## Asian-Style Options
+- Both methods produce **economically sensible American put values**.
+- LSM can price **above or below** the FD benchmark.
+- TVR tends to stay **near FD** and often slightly **below** it.
 
-## Jump-Diffusion Options
+**Takeaway:** differences are methodological, not noise from different setups.
 
-## Longstaff vs. Tsitsiklis: A Direct Comparison
+## Vanilla visuals: benchmark alignment
 
-## Implementation and Computational Testing
+:::: {.columns}
+::: {.column width="50%"}
+![Longstaff benchmark vs finite difference.](../visuals/longstaff_vanilla_benchmark_comparison.png){width=100%}
 
-## Convergence and accuracy
-- **Convergence:** Both methods rely on the law of large numbers to ensure that the estimates converge to the true option value as the number of simulations increases. However, the rate of convergence can be slow, especially for options with long maturities or high volatility, which may require a large number of simulations to achieve accurate results.
-- **Accuracy:** The accuracy of the estimates can be affected by several factors, including the choice of basis functions, the number of simulations, and the complexity of the payoff structure. In general, both methods can provide accurate estimates for American options, but may require careful tuning and experimentation to achieve the best results for a given problem.
+**LSM:** tighter than same-path pricing, but still case-dependent around FD.
+:::
 
-## Critical Assessment of Methods
-- **Longstaff--Schwartz method:**
-  - Strengths: Flexible framework, can handle high-dimensional problems and complex payoff structures.
-  - Weaknesses: Choice of basis functions can significantly affect accuracy, may require a large number of simulations for accurate results, especially for options with long maturities or high volatility.
-- **Tsitsiklis--Van Roy method:**
-  - Strengths: Can be more efficient than the Longstaff--Schwartz method in certain cases, provides a direct approximation of the option's value.
-  - Weaknesses: Similar to the Longstaff--Schwartz method, the choice of basis functions can significantly affect accuracy, may require a large number of simulations for accurate results, particularly for options with complex payoff structures or long maturities, **exponential blowup** in the number of basis functions needed for accurate approximation as the dimensionality of the problem increases, which can lead to computational challenges.
+::: {.column width="50%"}
+![TVR benchmark vs finite difference.](../visuals/tvr_vanilla_benchmark_comparison.png){width=100%}
 
-## Scope and Claims
+**TVR:** clusters more closely around FD across the shared grid.
+:::
+::::
 
+## Validation matters: same-path optimism is mainly a Longstaff issue
 
-## Conclusion
+```{=latex}
+\small
+\centering
+\begin{tabular}{lrrr}
+\toprule
+Representative case & In-sample & Out-of-sample & Fit - Eval \\
+\midrule
+LSM: $S_0=36,\ \sigma=0.2,\ T=1$ & 4.452 & 4.206 & 0.247 \\
+LSM: $S_0=40,\ \sigma=0.2,\ T=2$ & 3.060 & 2.739 & 0.321 \\
+LSM: $S_0=40,\ \sigma=0.4,\ T=2$ & 7.810 & 6.956 & 0.854 \\
+\midrule
+TVR: $S_0=36,\ \sigma=0.2,\ T=1$ & 4.386 & 4.381 & 0.005 \\
+TVR: $S_0=40,\ \sigma=0.2,\ T=2$ & 2.804 & 2.817 & -0.014 \\
+TVR: $S_0=44,\ \sigma=0.4,\ T=1$ & 3.865 & 3.840 & 0.025 \\
+\bottomrule
+\end{tabular}
+```
 
+- LSM shows **clear same-path optimism**.
+- TVR fit/eval gaps are **much smaller**.
+
+**Takeaway:** out-of-sample policy evaluation is not optional.
+
+## Robustness: what moves the price?
+
+:::: {.columns}
+::: {.column width="49%"}
+**Longstaff**
+- Path count reduces SE, but not monotone benchmark error
+- Sensitive to exercise grid
+- Sensitive to basis choice
+- Seed variation is smaller than the main benchmark gaps
+:::
+
+::: {.column width="49%"}
+**TVR**
+- Also benefits from more paths
+- More stable across path budgets
+- More directional improvement with richer bases
+- Still mildly conservative against FD
+:::
+::::
+
+**Main message:** price quality depends on more than path count:
+- basis design,
+- exercise grid,
+- validation structure,
+- approximation target.
+
+## Robustness snapshots
+
+```{=latex}
+\small
+\centering
+\begin{tabular}{llrr}
+\toprule
+Test & Case & LSM pattern & TVR pattern \\
+\midrule
+Paths & $(40,0.2,1)$ & 2.317 \to 2.447 & 2.270 \to 2.282 \\
+Paths & $(40,0.4,2)$ & 6.935 \to 6.958 & 6.889 \to 6.850 \\
+Grid & $(40,0.2,1)$ & 2.561 \to 2.344 & 2.295 \to 2.281 \\
+Grid & $(40,0.4,2)$ & 7.210 \to 6.827 & 6.864 \to 6.819 \\
+Basis & $(40,0.2,1)$ & 2.385 \to 2.458 & 2.151 \to 2.285 \\
+Basis & $(40,0.4,2)$ & 6.890 \to 6.992 & 6.466 \to 6.862 \\
+\bottomrule
+\end{tabular}
+```
+
+- LSM is more sensitive to the interaction of fit and stopping-rule construction.
+- TVR is more constrained by **under-parameterization** when the basis is too small.
+
+## Asian-style extension: matched multistate study
+
+- Contract: American--Bermuda--Asian put
+- Shared design:
+  - $K=100$, $r=0.06$, $\sigma=0.20$, $T=2$
+  - lockout $=0.25$
+  - 100 exercise dates / year
+- State is now **two-dimensional**:
+  - current spot $S_t$
+  - running arithmetic average $A_t$
+- Immediate payoff depends on the average:
+
+$$
+h(S_t,A_t)=(K-A_t)^+
+$$
+
+**Purpose:** move from 1D vanilla validation to a richer continuation problem.
+
+## Asian-style results: both methods work, policies differ
+
+```{=latex}
+\small
+\centering
+\begin{tabular}{lrrrr}
+\toprule
+Representative case & LSM (OOS) & LSM Fit-Eval & TVR (OOS) & TVR - LSM \\
+\midrule
+$A_0=90,\ S_0=80$ & 13.777 & 1.016 & 17.498 & 3.720 \\
+$A_0=100,\ S_0=100$ & 3.213 & 0.122 & 3.598 & 0.384 \\
+$A_0=110,\ S_0=110$ & 1.066 & 0.068 & 1.078 & 0.013 \\
+\bottomrule
+\end{tabular}
+```
+
+- Both methods show the right comparative statics.
+- LSM still has **positive fit-vs-eval gaps**.
+- TVR is more **validation-stable** and often gives **higher values**.
+
+**Interpretation:** multistate comparison only --- not a direct PDE benchmark exercise.
+
+## Asian-style visuals: continuation behavior differs
+
+:::: {.columns}
+::: {.column width="50%"}
+![Longstaff Asian state cloud with exercise overlay.](../visuals/longstaff_asian_state_scatter.png){width=100%}
+
+**LSM:** more exercise-prone in borderline states.
+:::
+
+::: {.column width="50%"}
+![TVR Asian state cloud with exercise overlay.](../visuals/tvr_asian_state_scatter.png){width=100%}
+
+**TVR:** more continuation-oriented under the same contract design.
+:::
+::::
+
+## Jump-style extension: matched changed-dynamics study
+
+- Same vanilla American put payoff
+- Change the **simulator**, not the workflow
+- Shared setup:
+  - $K=40$, $r=0.06$, $T=1$
+  - 26 exercise dates / year
+  - 50,000 paths
+  - $S_0\in\{36,38,40,42,44\}$
+- Two matched cases:
+  - **No jump:** $\sigma=0.30,\ \lambda=0$
+  - **Jump-to-ruin:** $\sigma=0.20,\ \lambda=0.05$
+
+**Purpose:** test whether both methods remain coherent when dynamics change.
+
+## Jump-style results: changed dynamics, same methodological contrast
+
+```{=latex}
+\small
+\centering
+\begin{tabular}{lrrrr}
+\toprule
+Case at $S_0=40$ & American & Euro MC & Premium & Fit-Eval \\
+\midrule
+LSM no-jump & 4.093 & 3.570 & 0.523 & 0.235 \\
+LSM jump-to-ruin & 3.614 & 3.220 & 0.394 & 0.149 \\
+TVR no-jump & 3.743 & 3.588 & 0.155 & 0.001 \\
+TVR jump-to-ruin & 3.277 & 3.217 & 0.060 & -0.020 \\
+\bottomrule
+\end{tabular}
+```
+
+- Values fall with spot in both model cases.
+- American values remain above European MC values.
+- In this matched design, **jump-to-ruin values are generally lower** than no-jump values.
+- TVR remains more conservative than LSM.
+
+## Jump-style visuals: price ranking + exercised-state summary
+
+:::: {.columns}
+::: {.column width="50%"}
+![Longstaff matched jump extension: prices across spot grid and representative exercised-state summary.](../visuals/longstaff_jump_boundary_comparison.png){width=100%}
+
+**LSM:** coherent under changed dynamics, but more exercise-prone.
+:::
+
+::: {.column width="50%"}
+![TVR matched jump extension: prices across spot grid and representative exercised-state summary.](../visuals/tvr_jump_boundary_comparison.png){width=100%}
+
+**TVR:** same ranking, smaller fit/eval gap, more selective exercise.
+:::
+::::
+
+## Direct Longstaff vs TVR comparison
+
+:::: {.columns}
+::: {.column width="50%"}
+**Longstaff--Schwartz**
+- More directly tied to stopping-rule construction
+- Strong practical simulation method
+- More sensitive to:
+  - fit/eval separation,
+  - basis design,
+  - exercise-grid design
+- Can look optimistic if only same-path values are reported
+:::
+
+::: {.column width="50%"}
+**Tsitsiklis--Van Roy**
+- More naturally read as fitted value iteration
+- More stable under matched out-of-sample evaluation
+- Often mildly conservative in benchmark alignment
+- More continuation-oriented in the extensions
+:::
+::::
+
+**Bottom line:** same optimal stopping problem, different numerical behavior.
+
+## Implementation and computational testing
+
+- The project does **not** claim strict numerical convergence proofs.
+- Instead, it uses the papers' ideas to motivate a careful empirical workflow:
+  - direct benchmarking where possible,
+  - independent policy evaluation,
+  - matched testbeds across methods,
+  - robustness checks when approximation design matters.
+- Vanilla is the main validation layer.
+- Asian and jump are extension layers for:
+  - richer state representation,
+  - changed dynamics,
+  - workflow flexibility.
+
+**Testing claim:** not production pricing --- but defensible implementation evidence.
+
+## Final takeaways
+
+- Regression-based American pricing is **flexible and useful**.
+- But the output depends on more than simulation size:
+  - basis design,
+  - state representation,
+  - exercise grid,
+  - validation structure.
+- Longstaff and TVR are **not numerically interchangeable**.
+- Under the shared design here:
+  - **LSM** is more directly tied to practical stopping-rule construction,
+  - **TVR** is more validation-stable and mildly conservative.
+- Strongest project contribution:
+  - one clean vanilla benchmark,
+  - two matched extensions,
+  - one coherent methodological comparison.
 
 ## References
-Longstaff, F. A., & Schwartz, E. S. (2001). Valuing American options by simulation: A simple least-squares approach. *The Review of Financial Studies*, 14(1), 113--147.
 
-Tsitsiklis, J. N., & Van Roy, B. (2001). Regression methods for pricing complex American-style options. *IEEE Transactions on Neural Networks*, 12(4), 694--703.
+Longstaff, F. A., & Schwartz, E. S. (2001). *Valuing American options by simulation: A simple least-squares approach.*
+
+Tsitsiklis, J. N., & Van Roy, B. (2001). *Regression methods for pricing complex American-style options.*

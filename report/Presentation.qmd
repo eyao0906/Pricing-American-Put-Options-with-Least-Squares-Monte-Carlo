@@ -25,16 +25,20 @@ fontsize: 11pt
 
 ## Why this project matters
 
-- American option pricing is an **optimal stopping** problem.
-- Need both:
+American option pricing is an **optimal stopping** problem. Need both:
+
   - a price,
   - an exercise rule.
-- Direct trees / PDE methods work well in **simple 1D settings**.
-- Richer contracts quickly create problems with:
+
+Direct trees / PDE methods work well in **simple 1D settings**.
+
+Richer contracts quickly create problems with:
+
   - larger state spaces,
   - path dependence,
   - changed dynamics.
-- This project studies two regression-based simulation methods under **one common design**.
+
+This project studies two regression-based simulation methods under **one common design**.
 
 **Goal:** compare methodology, not mismatched case studies.
 
@@ -64,21 +68,27 @@ $$
 
 **Key difference:** same Bellman problem, different recursion target.
 
-## Experimental design: one benchmark layer, two extensions
+## Experimental Design: one benchmark layer, two extensions
+The project is organized around three shared study layers. Vanilla is the benchmark exercise; Asian and jump are structural extensions.
 
-- **Main validation layer:** vanilla American put under risk-neutral GBM
-- **Shared inputs:**
+**Main validation layer:** Vanilla American put under risk-neutral GBM
+
+**Shared inputs:**
+
   - $K=40$, $r=0.06$
   - $S_0\in\{36,38,40,42,44\}$
   - $\sigma\in\{0.20,0.40\}$
   - $T\in\{1,2\}$
   - 50 exercise dates / year
   - 100,000 paths
-- **Extensions:**
+
+**Extensions:**
+
   - **Asian-style:** richer state vector $(S_t,A_t)$
   - **Jump-style:** changed simulator dynamics
 
-**Design rule:** vanilla is the benchmark exercise; Asian and jump are structural extensions.
+## Integrated Implementation Workflow and Code Design
+
 
 ## Benchmark hierarchy and implementation workflow
 $$
@@ -92,14 +102,19 @@ $$
 \rightarrow
 \text{Robustness + extensions}
 $$
-- Shared pieces wherever possible:
+
+Shared pieces wherever possible:
+
   - simulator,
   - basis construction,
   - benchmark logic.
-- Different pieces:
+
+Different pieces:
+
   - **LSM:** continuation-cash-flow regression,
   - **TVR:** fitted value recursion.
-- In both methods, the fitted policy is then **evaluated on fresh paths**.
+
+In both methods, the fitted policy is then evaluated on fresh paths.
 
 **Why this matters:** same environment, different recursion logic.
 
@@ -304,7 +319,7 @@ TVR jump-to-ruin & 3.277 & 3.217 & 0.060 & -0.020 \\
 \end{tabular}
 ```
 
-- Values fall with spot in both model cases.
+- Across the full jump grid, values fall with spot in both model cases.
 - American values remain above European MC values.
 - In this matched design, **jump-to-ruin values are generally lower** than no-jump values.
 - TVR remains more conservative than LSM.
@@ -321,7 +336,7 @@ TVR jump-to-ruin & 3.277 & 3.217 & 0.060 & -0.020 \\
 ::: {.column width="50%"}
 ![TVR matched jump extension: prices across spot grid and representative exercised-state summary.](../visuals/tvr_jump_boundary_comparison.png){width=100%}
 
-**TVR:** same ranking, smaller fit/eval gap, more selective exercise.
+**TVR:** same ranking, more selective exercise; smaller fit/eval gap in the matched jump tables.
 :::
 ::::
 

@@ -87,82 +87,6 @@ The project is organized around three shared study layers motivated by correspon
   - **Asian-style:** richer state vector $(S_t,A_t)$
   - **Jump-style:** changed simulator dynamics
 
-## Asian-style extension: American–Bermuda–Asian put
-The state space is expanded to include both current spot and a running arithmetic average, with exercise restricted by a lockout period.
-
-Under the risk-neutral measure, the stock follows GBM:
-$$
-dS_t = r S_t,dt + \sigma S_t,dW_t^{\mathbb Q},
-$$
-
-with constant r and $\sigma$. In the present Asian benchmark, the contract parameters are set to K = 100, r = 0.06, $\sigma = 0.20$, T = 2, with a lockout period of 0.25 years and 100 exercise dates per year in the discrete approximation. The same contract scope is used for both Longstaff and TVR.  
-
-##
-To reflect the paper’s idea that the average starts before valuation, we use a pre-started running arithmetic average:
-$$
-A_t = \frac{\delta A_0 + \int_0^t S_u,du}{\delta + t},
-\qquad \delta = 0.25,
-$$
-
-where $A_0$ is the initial average level specified in the benchmark grid. In the code, this is the second state variable carried along each simulated path. 
-
-The payoff from immediate exercise at time t is $h(S_t,A_t)=(K-A_t)^+,$ so this is an average-based put rather than a spot-based vanilla put. Exercise is not allowed before the lockout date $t_{\mathrm{lock}}=0.25$. The time-zero value is therefore
-
-$$
-V_0 = \sup_{\tau \in \mathcal T,\ \tau \ge t_{\mathrm{lock}}}
-\mathbb E^{\mathbb Q} \left[e^{-r\tau}(K-A_\tau)^+\right].
-$$
-
-##
-With exercise dates $(0=t_0<t_1<\cdots<t_N=T)$, the discrete-time Bellman recursion is
-$$
-V_i(s,a)
-=
-\max\left\{
-(K-a)^+,\;
-\mathbb{E}^{\mathbb{Q}}\!\left[
-e^{-r\Delta t}V_{i+1}(S_{t_{i+1}},A_{t_{i+1}})
-\mid S_{t_i}=s,\ A_{t_i}=a
-\right]
-\right\}.
-$$
-
-for dates after the lockout, with terminal condition $V_N(s,a)=(K-a)^{+}.$
- 
-## Jump-style extension: changed-dynamics study
-The final layer replaces the standard GBM simulator with a stylized jump-to-ruin process.
-
-Under the risk-neutral measure, we use a stylized jump-to-ruin process of the form
-$$
-dS_t = (r+\lambda)S_t,dt + \sigma S_t,dW_t^{\mathbb Q} - S_{t^-},dq_t,
-$$
-
-where $q_t$ is a Poisson process with intensity $\lambda$. When a jump occurs, the stock is sent to zero and remains there afterward. The $r+\lambda$ drift adjustment is the martingale correction used in the paper’s jump comparison. 
-
-##
-The immediate exercise payoff remains the vanilla American put payoff, $h(S_t) = (K-S_t)^+,$ so the time-zero value is
-$$
-V_0 = \sup_{\tau \in \mathcal T}
-\mathbb E^{\mathbb Q} \left[e^{-r\tau}(K-S_\tau)^+\right].
-$$
-
-With exercise dates $0=t_0<t_1<\cdots<t_N=T$, the discrete-time Bellman recursion is
-$$
-V_i(s)=
-\max\left\{
-(K-s)^+,\;
-\mathbb{E}^{\mathbb{Q}}\!\left[
-e^{-r\Delta t} V_{i+1}(S_{t_{i+1}})
-\,\middle|\, S_{t_i}=s
-\right]
-\right\}.
-$$
-
-We compare two cases with the same strike and maturity, K = 40, r = 0.06, T = 1, using 26 exercise dates per year:
-
-* **no jump:** $\lambda=0, \sigma=0.30$
-* **jump-to-ruin:** $\lambda=0.05, \sigma=0.20$.
-
 ## Benchmark hierarchy and implementation workflow
 $$
 \text{European BS lower reference}
@@ -347,21 +271,48 @@ Basis(2 \to 5) & $(40,0.4,2)$ & 6.890 \to 6.992 & 6.466 \to 6.862 \\
 - validation structure,
 - approximation target.
 
-## Asian-style extension: matched multistate study
-Contract: American--Bermuda--Asian put
-Shared design:
-  - $K=100$, $r=0.06$, $\sigma=0.20$, $T=2$
-  - lockout $=0.25$
-  - 100 exercise dates / year
+## Asian-style extension: American–Bermuda–Asian put
+The state space is expanded to include both current spot and a running arithmetic average, with exercise restricted by a lockout period.
 
-State is now **two-dimensional**:
-  - current spot $S_t$
-  - running arithmetic average $A_t$
+Under the risk-neutral measure, the stock follows GBM:
+$$
+dS_t = r S_t dt + \sigma S_t dW_t^{\mathbb Q},
+$$
 
-Immediate payoff depends on the average:
+with constant r and $\sigma$. In the present Asian benchmark, the contract parameters are set to K = 100, r = 0.06, $\sigma = 0.20$, T = 2, with a lockout period of 0.25 years and 100 exercise dates per year in the discrete approximation. The same contract scope is used for both Longstaff and TVR.  
+
+##
+To reflect the paper’s idea that the average starts before valuation, we use a pre-started running arithmetic average:
 $$
-h(S_t,A_t)=(K-A_t)^+
+A_t = \frac{\delta A_0 + \int_0^t S_u,du}{\delta + t},
+\qquad \delta = 0.25,
 $$
+
+where $A_0$ is the initial average level specified in the benchmark grid. In the code, this is the second state variable carried along each simulated path. 
+
+The payoff from immediate exercise at time t is $h(S_t,A_t)=(K-A_t)^+,$ so this is an average-based put rather than a spot-based vanilla put. Exercise is not allowed before the lockout date $t_{\mathrm{lock}}=0.25$. The time-zero value is therefore
+
+$$
+V_0 = \sup_{\tau \in \mathcal T,\ \tau \ge t_{\mathrm{lock}}}
+\mathbb E^{\mathbb Q} \left[e^{-r\tau}(K-A_\tau)^+\right].
+$$
+
+##
+With exercise dates $(0=t_0<t_1<\cdots<t_N=T)$, the discrete-time Bellman recursion is
+$$
+V_i(s,a)
+=
+\max\left\{
+(K-a)^+,\;
+\mathbb{E}^{\mathbb{Q}}\!\left[
+e^{-r\Delta t}V_{i+1}(S_{t_{i+1}},A_{t_{i+1}})
+\mid S_{t_i}=s,\ A_{t_i}=a
+\right]
+\right\}.
+$$
+
+for dates after the lockout, with terminal condition $V_N(s,a)=(K-a)^{+}.$
+
 **Purpose:** move from 1D vanilla validation to a richer continuation problem.
 
 ## Asian-style results: both methods work, policies differ
@@ -407,19 +358,39 @@ $A_0=110,\ S_0=110$ & 1.066 & 0.068 & 1.078 & 0.013 \\
 :::
 ::::
 
-## Jump-style extension: matched changed-dynamics study
-Same vanilla American put payoff, change the **simulator**, not the workflow.
+## Jump-style extension: changed-dynamics study
+The final layer replaces the standard GBM simulator with a stylized jump-to-ruin process.
 
-Shared setup:
+Under the risk-neutral measure, we use a stylized jump-to-ruin process of the form
+$$
+dS_t = (r+\lambda)S_t dt + \sigma S_t dW_t^{\mathbb Q} - S_{t^-} dq_t,
+$$
 
-  - $K=40$, $r=0.06$, $T=1$
-  - 26 exercise dates / year
-  - 50,000 paths
-  - $S_0\in\{36,38,40,42,44\}$
+where $q_t$ is a Poisson process with intensity $\lambda$. When a jump occurs, the stock is sent to zero and remains there afterward. The $r+\lambda$ drift adjustment is the martingale correction used in the paper’s jump comparison. 
 
-Two matched cases:
-  - **No jump:** $\sigma=0.30,\ \lambda=0$
-  - **Jump-to-ruin:** $\sigma=0.20,\ \lambda=0.05$
+##
+The immediate exercise payoff remains the vanilla American put payoff, $h(S_t) = (K-S_t)^+,$ so the time-zero value is
+$$
+V_0 = \sup_{\tau \in \mathcal T}
+\mathbb E^{\mathbb Q} \left[e^{-r\tau}(K-S_\tau)^+\right].
+$$
+
+With exercise dates $0=t_0<t_1<\cdots<t_N=T$, the discrete-time Bellman recursion is
+$$
+V_i(s)=
+\max\left\{
+(K-s)^+,\;
+\mathbb{E}^{\mathbb{Q}}\!\left[
+e^{-r\Delta t} V_{i+1}(S_{t_{i+1}})
+\,\middle|\, S_{t_i}=s
+\right]
+\right\}.
+$$
+
+We compare two cases with the same strike and maturity, K = 40, r = 0.06, T = 1, using 26 exercise dates per year:
+
+* **no jump:** $\lambda=0, \sigma=0.30$
+* **jump-to-ruin:** $\lambda=0.05, \sigma=0.20$.
 
 **Purpose:** test whether both methods remain coherent when dynamics change.
 

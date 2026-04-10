@@ -81,17 +81,17 @@ $$
 **Design rule:** vanilla is the benchmark exercise; Asian and jump are structural extensions.
 
 ## Benchmark hierarchy and implementation workflow
-
 $$
 \text{European BS lower reference}
 \rightarrow
 \text{Direct American benchmarks (FD, CRR)}
 \rightarrow
+$$
+$$
 \text{Longstaff / TVR}
 \rightarrow
 \text{Robustness + extensions}
 $$
-
 - Shared pieces wherever possible:
   - simulator,
   - basis construction,

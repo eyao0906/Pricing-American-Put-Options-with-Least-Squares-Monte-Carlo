@@ -498,7 +498,7 @@ TVR jump-to-ruin & 3.277 & 3.217 & 0.060 & -0.020 \\
 ::: {.column width="50%"}
 ![TVR matched jump extension](../visuals/tvr_jump_boundary_comparison.png){width=100%}
 
-**TVR:** same ranking, more selective exercise; smaller fit/eval gap in the matched jump tables.
+**TVR:** same ranking, more selective exercise; smaller fit/eval gap
 :::
 ::::
 

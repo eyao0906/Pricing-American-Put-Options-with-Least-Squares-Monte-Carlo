@@ -68,25 +68,6 @@ $$
 
 **Key difference:** same Bellman problem, different recursion target.
 
-## Experimental Design: one benchmark layer, two extensions
-The project is organized around three shared study layers motivated by corresponding examples in Longstaff–Schwartz paper.
-
-**Main validation layer:** Vanilla American put under risk-neutral GBM
-
-**Shared inputs:**
-
-  - $K=40$, $r=0.06$
-  - $S_0\in\{36,38,40,42,44\}$
-  - $\sigma\in\{0.20,0.40\}$
-  - $T\in\{1,2\}$
-  - 50 exercise dates / year
-  - 100,000 paths (50,000 base + 50,000 antithetic)
-
-**Extensions:**
-
-  - **Asian-style:** richer state vector $(S_t,A_t)$
-  - **Jump-style:** changed simulator dynamics
-
 ## Basis functions: how each method implements its regression (R.B)
 
 :::: {.columns}
@@ -119,6 +100,25 @@ $$\epsilon_n^* = \min_r \|\Phi r - Q_n\|_{\pi_n}$$
 
 **Key difference:** LSM uses realized data; TVR carries forward fitted estimates.
 Larger $\epsilon_n^*$ $\Rightarrow$ more error accumulation backward through time.
+
+## Experimental Design: one benchmark layer, two extensions
+The project is organized around three shared study layers motivated by corresponding examples in Longstaff–Schwartz paper.
+
+**Main validation layer:** Vanilla American put under risk-neutral GBM
+
+**Shared inputs:**
+
+  - $K=40$, $r=0.06$
+  - $S_0\in\{36,38,40,42,44\}$
+  - $\sigma\in\{0.20,0.40\}$
+  - $T\in\{1,2\}$
+  - 50 exercise dates / year
+  - 100,000 paths (50,000 base + 50,000 antithetic)
+
+**Extensions:**
+
+  - **Asian-style:** richer state vector $(S_t,A_t)$
+  - **Jump-style:** changed simulator dynamics
 
 ## Benchmark hierarchy and implementation workflow
 $$
@@ -249,37 +249,6 @@ TVR: $S_0=44,\ \sigma=0.4,\ T=1$ & 3.865 & 3.840 & 0.025 \\
 - TVR fit/eval gaps are **much smaller**.
 
 **Takeaway:** out-of-sample policy evaluation is not optional.
-
-## Convergence theory: why the two methods behave differently (R.B)
-
-**LSM: Proposition 1 (downward bias)**
-
-$$V(X) \geq \lim_{N\to\infty} \frac{1}{N}\sum_{i=1}^N \text{LSM}(\omega_i; M, K)$$
-
-LSM produces a stopping rule --- asymptotically never overstates true value.
-But in finite samples with a finite basis, prices can sit above or below a numerical benchmark.
-The large fit/eval gaps in our results confirm that same-path evaluation overstates performance.
-
-**TVR: Theorem 1 (bounded error under trajectory sampling)**
-
-$$\tilde{e}_n^2 \leq \alpha^2 \tilde{e}_{n+1}^2 + (\epsilon_n^*)^2$$
-
-If states are sampled from the risk-neutral trajectory distribution, error is bounded:
-
-$$\tilde{e}_n \leq \frac{\epsilon}{\sqrt{2(1-\alpha^2)}} \quad \textbf{independent of } N$$
-
-Without trajectory sampling, errors grow **exponentially** with horizon.
-
-**TVR: Theorem 2 (almost sure convergence)**
-
-$$\hat{r}_n(m) \xrightarrow{a.s.} r_n \quad \text{as } m \to \infty$$
-
-Sample-based regression converges to the idealised algorithm as paths grow.
-
-**This explains our results:** TVR's small fit/eval gaps reflect bounded error accumulation.
-LSM's large gaps reflect in-sample optimism that out-of-sample evaluation corrects.
-Our basis sensitivity tables show $\epsilon_n^*$ shrinking as basis grows --- exactly as Theorem 1 predicts.
-
 
 ## Robustness snapshots
 
@@ -529,6 +498,38 @@ TVR jump-to-ruin & 3.277 & 3.217 & 0.060 & -0.020 \\
 ::::
 
 **Bottom line:** same optimal stopping problem, different numerical behavior.
+
+## Convergence theory: why the two methods behave differently (R.B)
+
+**LSM: Proposition 1 (downward bias)**
+
+$$V(X) \geq \lim_{N\to\infty} \frac{1}{N}\sum_{i=1}^N \text{LSM}(\omega_i; M, K)$$
+
+LSM produces a stopping rule --- asymptotically never overstates true value.
+But in finite samples with a finite basis, prices can sit above or below a numerical benchmark.
+The large fit/eval gaps in our results confirm that same-path evaluation overstates performance.
+
+## 
+**TVR: Theorem 1 (bounded error under trajectory sampling)**
+
+$$\tilde{e}_n^2 \leq \alpha^2 \tilde{e}_{n+1}^2 + (\epsilon_n^*)^2$$
+
+If states are sampled from the risk-neutral trajectory distribution, error is bounded:
+
+$$\tilde{e}_n \leq \frac{\epsilon}{\sqrt{2(1-\alpha^2)}} \quad \textbf{independent of } N$$
+
+Without trajectory sampling, errors grow **exponentially** with horizon.
+
+##
+**TVR: Theorem 2 (almost sure convergence)**
+
+$$\hat{r}_n(m) \xrightarrow{a.s.} r_n \quad \text{as } m \to \infty$$
+
+Sample-based regression converges to the idealised algorithm as paths grow.
+
+**This explains our results:** TVR's small fit/eval gaps reflect bounded error accumulation.
+LSM's large gaps reflect in-sample optimism that out-of-sample evaluation corrects.
+Our basis sensitivity tables show $\epsilon_n^*$ shrinking as basis grows --- exactly as Theorem 1 predicts.
 
 ## Implementation Scope and Claims
 

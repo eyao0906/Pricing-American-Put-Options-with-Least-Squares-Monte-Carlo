@@ -25,24 +25,30 @@ fontsize: 11pt
 
 ## From European to American: what changes?
 
-- A European option can only be exercised at maturity
-- Its value depends on a single terminal payoff expectation
-- An American option can be exercised before maturity
-- Valuation therefore becomes both:
+A European option can only be exercised at maturity
+
+Its value depends on a single terminal payoff expectation
+
+An American option can be exercised before maturity
+
+Valuation therefore becomes both:
+
   - a pricing problem
   - a decision problem
 
 ## American put pricing as an optimal stopping problem
 
-- We consider a vanilla American put with strike $K$ and maturity $T$
-- Under the risk-neutral measure, the holder chooses an admissible stopping time $\tau$
-- The time-0 value is
+We consider a vanilla American put with strike $K$ and maturity $T$
+
+Under the risk-neutral measure, the holder chooses an admissible stopping time $\tau$
+
+The time-0 value is
 
 $$
 V_0=\sup_{\tau\in\mathcal T}\mathbb E^{\mathbb Q}\left[e^{-r\tau}(K-S_\tau)^+\right]
 $$
 
-- American option pricing is therefore an optimal stopping problem
+American option pricing is therefore an optimal stopping problem
 
 ## Bellman recursion: exercise vs continuation
 
@@ -69,8 +75,11 @@ $$
 ## What exactly is difficult to compute?
 
 - The intrinsic value is easy to compute
+
 - The main difficulty is the continuation value
+
 - It is an unknown conditional expectation inside a backward recursion
+
 - This is the computational issue that motivates the methods in the rest of the presentation
 
 ## Why this project matters
@@ -630,7 +639,7 @@ Asian and jump are extension layers for:
 no dual-bound validation --- neither is production-ready as implemented here.
 
 
-## Final takeaways
+## Final takeaways (Josh)
 
 Regression-based American pricing is **flexible and useful**.
 
@@ -660,16 +669,6 @@ Important design choices include:
   - out-of-sample validation
 
 Under a shared benchmark design, Longstaff and TVR are not numerically interchangeable
-
-## Final message
-
-American option pricing is fundamentally an optimal stopping problem.
-
-Regression-based methods provide a flexible way to handle richer contracts and changed dynamics.
-
-The key issue is not only computation, but also how continuation values are approximated and validated.
-
-A shared benchmark design makes methodological comparison more credible.
 
 ## References
 

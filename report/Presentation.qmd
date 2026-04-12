@@ -604,6 +604,32 @@ Asian and jump are extension layers for:
 
 **Testing claim:** not production pricing --- but defensible implementation evidence.
 
+## Limitations of the methods
+
+**GBM assumption:**
+
+  - Constant volatility --- real equity vol clusters and smiles
+  - No dividends --- matters for equity options in practice
+  - Lognormal returns --- fat tails and skew ignored
+  - Constant risk-free rate --- unrealistic for long maturities
+
+**LSM method:**
+
+  - Basis choice directly affects approximation quality
+  - In-sample optimism --- same-path pricing overstates performance
+  - Finite paths leave residual Monte Carlo noise
+  - Exercise grid discretization introduces Bermudan approximation error
+
+**TVR comparator:**
+
+  - Polynomial basis has larger $\epsilon_n^*$ than Laguerre basis
+  - All-path regression dilutes approximation in the ITM region
+  - Error accumulates backward through the recursion
+
+**Common to both:** no implied vol calibration, no dividend adjustment,
+no dual-bound validation --- neither is production-ready as implemented here.
+
+
 ## Final takeaways
 
 Regression-based American pricing is **flexible and useful**.

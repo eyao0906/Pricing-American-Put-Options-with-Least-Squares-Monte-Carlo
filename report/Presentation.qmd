@@ -23,6 +23,56 @@ format:
 fontsize: 11pt
 ---
 
+## From European to American: what changes?
+
+- A European option can only be exercised at maturity
+- Its value depends on a single terminal payoff expectation
+- An American option can be exercised before maturity
+- Valuation therefore becomes both:
+  - a pricing problem
+  - a decision problem
+
+## American put pricing as an optimal stopping problem
+
+- We consider a vanilla American put with strike $K$ and maturity $T$
+- Under the risk-neutral measure, the holder chooses an admissible stopping time $\tau$
+- The time-0 value is
+
+$$
+V_0=\sup_{\tau\in\mathcal T}\mathbb E^{\mathbb Q}\left[e^{-r\tau}(K-S_\tau)^+\right]
+$$
+
+- American option pricing is therefore an optimal stopping problem
+
+## Bellman recursion: exercise vs continuation
+
+At each exercise date, the option value satisfies
+
+$$
+V_i(S_{t_i})=\max\{h(S_{t_i}),C_i(S_{t_i})\}
+$$
+
+where
+
+$$
+h(S_{t_i})=(K-S_{t_i})^+
+$$
+
+and
+
+$$
+C_i(S_{t_i})=\mathbb E^{\mathbb Q}\left[e^{-r\Delta t}V_{i+1}(S_{t_{i+1}})\mid S_{t_i}\right]
+$$
+
+- The holder compares immediate exercise with continuation at each date
+
+## What exactly is difficult to compute?
+
+- The intrinsic value is easy to compute
+- The main difficulty is the continuation value
+- It is an unknown conditional expectation inside a backward recursion
+- This is the computational issue that motivates the methods in the rest of the presentation
+
 ## Why this project matters
 
 American option pricing is an **optimal stopping** problem. Need both:
@@ -42,7 +92,11 @@ This project studies two regression-based simulation methods under **one common 
 
 **Goal:** compare methodology, not mismatched case studies.
 
-## Methods compared
+## Longstaff-Schwarz Paper Walkthrough
+
+## Tsitsiklis-Van Roy Paper Walkthrough
+
+## Methods compared (Josh)
 
 :::: {.columns}
 ::: {.column width="50%"}
@@ -471,7 +525,7 @@ TVR jump-to-ruin & 3.277 & 3.217 & 0.060 & -0.020 \\
 :::
 ::::
 
-## Direct Longstaff vs TVR comparison
+## Direct Longstaff vs TVR comparison (R.B)
 
 :::: {.columns}
 ::: {.column width="50%"}
@@ -567,6 +621,29 @@ Under the shared design here:
 
   - **LSM** is more directly tied to practical stopping-rule construction,
   - **TVR** is more validation-stable and mildly conservative.
+
+## Main conclusions
+
+Regression-based methods are effective for pricing American-style options
+But pricing quality depends on more than simulation size
+Important design choices include:
+
+  - basis functions
+  - state representation
+  - exercise grid
+  - out-of-sample validation
+
+Under a shared benchmark design, Longstaff and TVR are not numerically interchangeable
+
+## Final message
+
+American option pricing is fundamentally an optimal stopping problem.
+
+Regression-based methods provide a flexible way to handle richer contracts and changed dynamics.
+
+The key issue is not only computation, but also how continuation values are approximated and validated.
+
+A shared benchmark design makes methodological comparison more credible.
 
 ## References
 

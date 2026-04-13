@@ -657,7 +657,7 @@ Asian and jump are extension layers for:
 **Common to both:** no implied vol calibration, no dividend adjustment.
 
 
-## Final takeaways (Josh)
+## Conclusion and Final takeaways (Josh)
 
 Regression-based American pricing is **flexible and useful**.
 
@@ -674,19 +674,6 @@ Under the shared design here:
 
   - **LSM** is more directly tied to practical stopping-rule construction,
   - **TVR** is more validation-stable and mildly conservative.
-
-## Main conclusions
-
-Regression-based methods are effective for pricing American-style options
-But pricing quality depends on more than simulation size
-Important design choices include:
-
-  - basis functions
-  - state representation
-  - exercise grid
-  - out-of-sample validation
-
-Under a shared benchmark design, Longstaff and TVR are not numerically interchangeable
 
 ## References
 

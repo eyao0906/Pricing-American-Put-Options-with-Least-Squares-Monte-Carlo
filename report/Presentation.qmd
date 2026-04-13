@@ -576,7 +576,7 @@ TVR jump-to-ruin & 3.277 & 3.217 & 0.060 & -0.020 \\
 - More naturally read as fitted value iteration
 - More stable under matched out-of-sample evaluation
 - Often mildly conservative in benchmark alignment
-- More continuation-oriented in the extensions
+
 :::
 ::::
 

@@ -458,19 +458,20 @@ $A_0=110,\ S_0=110$ & 1.066 & 0.068 & 1.078 & 0.013 \\
 
 **Interpretation:** multistate comparison only --- not a direct PDE benchmark exercise.
 
-## Asian-style visuals: continuation behavior differs
+## Among all states the simulation visits at date t, where does the fitted policy choose to stop rather than continue?
+Snapshot of T = 2, $A_0=S_0=100$ at t = 1. x-axis = Spot $S_t$, y-axis = Average $A_t$, the color bar is intrinsic value at time t
 
 :::: {.columns}
-::: {.column width="50%"}
+::: {.column width="40%"}
 ![Longstaff Asian state cloud with exercise overlay.](../visuals/longstaff_asian_state_scatter.png){width=100%}
 
-**LSM:** more exercise-prone in borderline states.
+More exercise-prone in borderline states.
 :::
 
-::: {.column width="50%"}
+::: {.column width="40%"}
 ![TVR Asian state cloud with exercise overlay.](../visuals/tvr_asian_state_scatter.png){width=100%}
 
-**TVR:** more continuation-oriented under the same contract design.
+More continuation-oriented
 :::
 ::::
 

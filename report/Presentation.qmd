@@ -648,7 +648,6 @@ Asian and jump are extension layers for:
   - Basis choice directly affects approximation quality
   - In-sample optimism --- same-path pricing overstates performance
   - Finite paths leave residual Monte Carlo noise
-  - Exercise grid discretization introduces Bermudan approximation error
 
 **TVR comparator:**
 
@@ -656,8 +655,7 @@ Asian and jump are extension layers for:
   - All-path regression dilutes approximation in the ITM region
   - Error accumulates backward through the recursion
 
-**Common to both:** no implied vol calibration, no dividend adjustment,
-no dual-bound validation --- neither is production-ready as implemented here.
+**Common to both:** no implied vol calibration, no dividend adjustment.
 
 
 ## Final takeaways (Josh)

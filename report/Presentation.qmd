@@ -101,9 +101,29 @@ This project studies two regression-based simulation methods under **one common 
 
 **Goal:** compare methodology, not mismatched case studies.
 
-## Longstaff-Schwarz Paper Walkthrough
+## Longstaff--Schwartz Paper Walkthrough
 
-## Tsitsiklis-Van Roy Paper Walkthrough
+Simulates risk-neutral paths and works backward from maturity
+
+Estimates continuation values by least-squares regression
+
+Regression target: discounted **realized future cash flows**
+
+Exercises when intrinsic value exceeds fitted continuation value
+
+Usually regresses only on **in-the-money** paths
+
+## Tsitsiklis--Van Roy Paper Walkthrough
+
+Treats the problem as approximate dynamic programming
+
+Starts from the Bellman recursion and moves backward recursively
+
+Approximates the value / continuation function with basis functions
+
+Regression target: discounted **next-step estimated values**
+
+Emphasizes approximation error and recursive stability
 
 ## Methods compared (Josh)
 

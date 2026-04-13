@@ -165,7 +165,7 @@ $$L_2(X) = e^{-X/2}(1 - 2X + X^2/2)$$
 
 - Applied to **in-the-money paths only**
 - Regression target: **realized future cash flows**
-- Basis is well-matched to stock price distribution on $[0,\infty)$
+
 :::
 
 ::: {.column width="50%"}
@@ -177,7 +177,6 @@ $$\epsilon_n^* = \min_r \|\Phi r - Q_n\|_{\pi_n}$$
 
 - Applied to **all paths**
 - Regression target: **discounted next-step value estimate**
-- Theory is agnostic about basis family --- quality determined by $\epsilon_n^*$
 :::
 ::::
 

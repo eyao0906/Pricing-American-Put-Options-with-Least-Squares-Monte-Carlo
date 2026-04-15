@@ -217,9 +217,7 @@ $$
 
 where $\pi_n$ is the distribution of representative states at time step $n$. In the TVR framework, the quality of the algorithm depends on keeping this approximation error controlled through the backward recursion. The theoretical emphasis is therefore less on a named basis family and more on whether the chosen basis captures the relevant continuation structure over the state region visited by simulated paths.
 
-This perspective is useful for the present project because it clarifies why basis design should be treated as a substantive modeling choice rather than a cosmetic implementation detail. In the shared vanilla benchmark, both Longstaff and TVR are intentionally run with matched approximation complexity so that the comparison is not driven by one method being given a systematically richer function class than the other. In the Asian-style extension, both methods move from a one-state to a two-state continuation problem, and the basis must expand accordingly to reflect the richer state vector. The practical question is therefore not whether one paper prescribes a universally superior polynomial family, but whether the chosen basis is rich enough to approximate continuation well while remaining numerically stable under the simulated trajectory distribution.
-
-Overall, the two papers offer complementary viewpoints on basis selection. Longstaff--Schwartz shows empirically that several reasonable low-order bases can perform similarly in simple problems, while Tsitsiklis--Van Roy explains theoretically that what ultimately matters is the projection error induced by the chosen approximation space. Read together, they support the design logic of the present study: use a shared benchmark environment, keep basis complexity comparable across methods, and then examine through robustness analysis how pricing performance reacts to basis choice, validation design, and state-space complexity.
+This perspective is useful for the present project because it clarifies why basis design should be treated as a substantive modeling. In the shared vanilla benchmark, both Longstaff and TVR are intentionally run with matched approximation complexity so that the comparison is differences in basis complexity. In the Asian-style extension, both methods move from a one-state to a two-state continuation problem, and the basis must expand accordingly to reflect the richer state vector while making sure we look out for numerical issues in the regression.
 
 ## Risk-neutral Benchmark Environment and Study Scope
 The project uses a standard geometric Brownian motion (GBM) environment under the risk-neutral measure:
@@ -976,29 +974,48 @@ The extension cases are handled differently. The Asian-style and jump-style stud
 
 ### Convergence and Validation Perspective
 
-A useful theoretical reference point from Longstaff--Schwartz is the lower-bound intuition behind the method. By Proposition 1 (LSM downward bias). *For any fixed finite basis and exercise design, the algorithm produces a specific stopping rule, so asymptotically its value cannot exceed the true American option value:*
+Both papers provide theoretical results that motivate the design used in this
+project.
 
-$$
-V(X) \ge \lim_{N \to \infty} \frac{1}{N}\sum_{i=1}^{N} \mathrm{LSM}(\omega_i; M, K).
-$$
+Longstaff--Schwartz establishes that the LSM algorithm produces a specific stopping rule
+from a finite basis and finite exercise grid. Because the true American option value is
+the supremum over all possible stopping rules, any particular rule --- including the LSM
+one --- can only give a value at most equal to the true optimum. This means LSM prices
+are asymptotically conservative relative to the true value, and that validation design
+matters if one wants the numerical output to reflect this lower-bound logic faithfully.
 
-This statement is helpful conceptually, but it should be interpreted carefully in the present report. It is an asymptotic result about the true American value, not a guarantee that every finite-sample implementation must lie below a numerical finite-difference benchmark in every case. In the current results, Longstaff values can sit above or below the finite-difference reference depending on the case, which is consistent with the fact that the implementation uses a finite number of paths, a finite basis, and a numerical benchmark rather than the unknown true value itself. The main practical lesson is therefore not that the reported LSMC prices must always be conservative in finite samples, but that validation design matters if one wants the numerical output to reflect the intended lower-bound logic more faithfully.
 
-A second Longstaff-Schwartz result is the practical convergence idea: under regularity conditions and with a sufficiently rich basis, the estimator can be made arbitrarily accurate as the number of simulation paths increases. In the paper, this is supported empirically by an out-of-sample diagnostic in which regression coefficients estimated on one path set are applied to a fresh set of paths. In our implementation, this idea directly motivates the two-pass validation design. The in-sample versus out-of-sample tables show that same-path valuation produces visible optimism for Longstaff, especially in the longer-maturity, higher-volatility cases, and that independent policy evaluation is therefore a substantive numerical correction rather than a cosmetic change.
+The theoretical message from Tsitsiklis--Van Roy is different. Their framework emphasises
+that approximation quality depends on the best projection error under the chosen basis
+and the distribution of representative states,
 
-The theoretical message from Tsitsiklis-Van Roy is different. Their framework emphasizes that approximation quality depends on the best projection error under the chosen basis and the distribution of representative states. A convenient way to summarize this is through the quantity
-$$
-\epsilon_n^* = \min_r \|\Phi r - Q_n\|_{\pi_n}
-= \|\Pi_n Q_n - Q_n\|_{\pi_n},
-$$
+$$\epsilon_n^* = \min_r \|\Phi r - Q_n\|_{\pi_n} = \|\Pi_n Q_n - Q_n\|_{\pi_n},$$
 
-which measures the best approximation error achievable at time step n under the state distribution $\pi_n$. The paper’s central theoretical point is that if representative states are sampled from the risk-neutral trajectory distributions, approximation errors remain controlled through the backward recursion rather than exploding with the horizon. In addition, as the number of simulated trajectories grows, the sample-based regression parameters converge to the parameters of the corresponding idealized population problem.
+which measures the best approximation error achievable at time step $n$ under the
+trajectory distribution $\pi_n$. The paper's central theoretical point is that when
+representative states are sampled from the risk-neutral trajectory distribution, the
+error at each backward step satisfies
 
-This perspective is directly relevant to the current implementation. It explains why the project uses shared simulated trajectory testbeds for both methods, why the TVR comparator is evaluated out of sample rather than reported only through fitted values, and why basis design and robustness checks are treated as substantive modeling choices. In the revised TVR results, the in-sample versus out-of-sample gap is much smaller than on the Longstaff side for the representative vanilla cases, which suggests that under the current shared design the fitted value-iteration scheme produces a comparatively stable stopping policy. This should not be read as a general theorem that TVR is always superior. It should be read as evidence that the two recursion schemes respond differently to the same validation framework.
+$$\tilde{e}_n^2 \leq \alpha^2\,\tilde{e}_{n+1}^2 + (\epsilon_n^*)^2,$$
 
-The robustness studies are therefore part of the implementation argument, not an appendix of cosmetic sensitivity checks. On the Longstaff side, the study reports in-sample versus out-of-sample valuation, path sensitivity, exercise-grid sensitivity, basis sensitivity, and seed sensitivity. On the TVR side, the study reports in-sample versus out-of-sample valuation together with compact path, timestep, and basis sensitivity exercises. Taken together, these diagnostics show that path count alone does not determine pricing quality. Approximation space, exercise-grid design, and validation structure also influence the reported values and the implied stopping rule.
+so approximation errors remain controlled through the backward recursion and do not grow
+with the horizon. Without trajectory-based sampling, errors can grow exponentially with
+the number of time steps, completely destabilising the algorithm. As the number of
+simulated trajectories grows, the sample-based regression parameters converge almost
+surely to the parameters of the corresponding idealised population problem:
 
-From the perspective of the report, the main implementation claim is therefore modest but meaningful. The project does not attempt to prove convergence numerically in the strict asymptotic sense of either paper. Instead, it uses the convergence and error-control ideas from the two papers to motivate a more careful empirical workflow: direct benchmarking where possible, out-of-sample policy evaluation, matched testbeds across methods, and explicit robustness analysis when approximation design may matter. That is the standard against which the implemented results should be interpreted.
+$$\hat{r}_n(m) \xrightarrow{\;a.s.\;} r_n \qquad \text{as } m \to \infty.$$
+
+These results explain why the project uses shared simulated trajectory testbeds for both
+methods, why both methods are evaluated out of sample rather than reported only through
+fitted values, and why basis design and robustness checks are treated as substantive
+modelling choices rather.
+
+The project does not attempt to prove convergence numerically in the strict asymptotic
+sense of either paper. Instead, it uses the convergence and error-control ideas from
+both papers to motivate a careful empirical workflow: direct benchmarking where possible,
+out-of-sample policy evaluation, matched testbeds across methods, and explicit robustness
+analysis when approximation design may matter.
 
 ## Critical Assessment: Strengths, Weaknesses, and Practical Risks
 The project highlights the strengths of both papers. Longstaff--Schwartz offers a direct and practical method for constructing an exercise rule from simulated cash flows. It is especially useful when the state process is rich enough that direct grids become inconvenient. Tsitsiklis--Van Roy provides a useful approximate-dynamic-programming perspective and emphasizes the recursive nature of value approximation. Together, the two methods illustrate two closely related ways of handling continuation values in American pricing.

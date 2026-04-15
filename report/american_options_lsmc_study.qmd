@@ -311,6 +311,20 @@ The computational pipeline is structured as a single, unified pricing study util
 
 The resulting workflow follows a strict sequential logic: define the shared synthetic inputs, establish the deterministic FD/CRR/BS benchmark layer, run both simulated regression engines on identical paths, and finally analyze the methodological divergence in their stopping policies.
 
+### Validation and Testing Logic
+
+The project is an empirical implementation study rather than a theorem-level numerical convergence proof. Accordingly, the testing design is built around direct benchmarking where possible, independent policy evaluation, and robustness analysis when approximation design may materially affect the result.
+
+The main validation layer is the vanilla American put under risk-neutral GBM. This case is used because it admits direct one-dimensional American benchmarks, allowing the regression-based methods to be checked against a problem where the stopping structure is well understood. In this layer, Black–Scholes provides a European lower reference, the implicit finite-difference solver provides the main direct American benchmark, and the CRR tree provides an auxiliary consistency check. This benchmark stack makes it possible to distinguish economically sensible pricing from genuine benchmark alignment.
+
+For both Longstaff–Schwartz and Tsitsiklis–Van Roy, the fitted regression rule is evaluated on an independent path set rather than being judged only on the same paths used for fitting. This matters because the output of each method is not just a regression coefficient vector but an implied stopping policy. Same-path valuation can therefore overstate performance, especially when the fitted continuation approximation interacts strongly with the exercise rule. Independent evaluation is used throughout the study to separate fitted-policy quality from same-sample optimism.
+
+Testing is then extended through a set of matched robustness checks concentrated in the vanilla benchmark. These include sensitivity to path count, exercise-grid density, basis size, and fit-versus-evaluation design. The purpose is not to claim monotone convergence in every finite experiment, but to identify which numerical choices materially move the final American price and whether the two recursion schemes respond in similar or different ways. This is particularly important because both methods rely on finite-dimensional approximation, so pricing differences can reflect approximation design as well as simulation noise.
+
+The Asian-style and jump-style extensions serve a different testing role. They are not treated as direct benchmark exercises in the same sense as the vanilla case, because no equally clean one-dimensional American reference is available there. Instead, they function as structural tests of methodological behavior under richer states and changed dynamics. The Asian extension checks whether the two methods remain operational and continue to produce interpretable stopping behavior in a genuinely multistate setting. The jump extension checks whether the same pricing workflow remains coherent once the simulator changes. In both cases, the goal is comparative behavior under a shared design rather than exact benchmark replication.
+
+Taken together, this validation logic is designed to match the scope of the project. The report does not claim that the implemented algorithms numerically prove the full convergence theory of either paper. Instead, it claims that under a shared computational design, direct benchmarking, independent policy evaluation, and robustness analysis provide a credible empirical basis for comparing the two regression-based American pricing methods.
+
 ## Results
 ### Shared Vanilla Benchmark
 We begin by replicating the vanilla American put benchmark in Longstaff and Schwartz (2001, pp. 14–16). In particular, we use the same strike, spot, volatility, and maturity grid, together with weighted Laguerre basis functions and in-the-money regression. The main difference is in the benchmark construction. Our finite-difference benchmark is evaluated on the same exercise grid as the Monte Carlo problem, with 50 exercise dates per year, so that the FD and LSMC results are compared under the same numerical exercise design. This matched-grid choice improves comparability across methods, while differing from the paper’s much finer finite-difference reference.
@@ -955,7 +969,7 @@ There is also a modest implementation asymmetry that makes the visual contrast l
 
 \FloatBarrier
 
-### Direct Longstaff vs TVR comparison
+## Direct Longstaff vs TVR comparison
 Taken together, the results point to a consistent methodological contrast between the two recursion schemes. Longstaff and TVR solve the same optimal-stopping problem under the same testbeds, but they do not behave the same numerically.
 
 Longstaff is the more direct continuation-regression method: it fits discounted realized future cash flows and converts that fit into an exercise rule. In the shared vanilla benchmark, this gives prices of the correct order of magnitude, but with visibly case-dependent benchmark error and a clear need for out-of-sample policy evaluation. TVR is the more recursive value-approximation method: under the same design, it tends to remain closer to its fitted and evaluated values and usually stays near, though often slightly below, the finite-difference benchmark.
@@ -964,14 +978,6 @@ That distinction carries into the extensions. In the Asian-style study, Longstaf
 
 The main conclusion of the Results section is therefore not that one method dominates the other in every setting. It is that the two papers lead to systematically different numerical behavior under a common implementation framework. Longstaff is more directly tied to practical stopping-rule construction, but also more sensitive to regression design and validation structure. TVR is more stable under matched out-of-sample evaluation, but tends to behave as the more conservative fitted approximation. That is the central empirical distinction the shared benchmark and extension evidence makes visible.
 
-## Implementation and Testing
-
-Two pricing frameworks are implemented under a common benchmark philosophy: Longstaff--Schwartz as the main practical algorithm and Tsitsiklis--Van Roy as a matched approximate-dynamic-programming comparator. Methods are tested on the same synthetic vanilla benchmark, the same Asian-style extension, and the same jump-style extension. The purpose of this design is not to build two isolated coding exercises, but to study how different regression-based recursion rules behave under the same pricing environment.
-
-The vanilla case is the main validation setting because it admits a direct one-dimensional American benchmark. In that setting, the Black--Scholes European put is used as a lower reference for the corresponding European claim, the implicit finite-difference solver is used as the main direct American benchmark, and the CRR tree is included as an auxiliary consistency check. This means the project does more than compare one regression method with another: it compares both Longstaff and TVR with a benchmark layer that solves the same vanilla American stopping problem under the same GBM assumptions.
-
-The extension cases are handled differently. The Asian-style and jump-style studies are included as methodological extensions rather than as fully benchmarked replications of the same type as the vanilla put. Their role is to show how the two recursion methods behave once the state vector becomes richer or the simulator changes, not to carry the same direct-validation burden as the one-dimensional benchmark. This distinction is important for interpreting the empirical evidence correctly: the vanilla study is the main validation layer, while the Asian and jump cases are structural tests of flexibility.
-
 ### Convergence and Validation Perspective
 
 Both papers provide theoretical results that motivate the design used in this
@@ -979,11 +985,10 @@ project.
 
 Longstaff--Schwartz establishes that the LSM algorithm produces a specific stopping rule
 from a finite basis and finite exercise grid. Because the true American option value is
-the supremum over all possible stopping rules, any particular rule --- including the LSM
-one --- can only give a value at most equal to the true optimum. This means LSM prices
+the supremum over all possible stopping rules, any particular rule, including the LSM
+one. can only give a value at most equal to the true optimum. This means LSM prices
 are asymptotically conservative relative to the true value, and that validation design
 matters if one wants the numerical output to reflect this lower-bound logic faithfully.
-
 
 The theoretical message from Tsitsiklis--Van Roy is different. Their framework emphasises
 that approximation quality depends on the best projection error under the chosen basis

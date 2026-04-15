@@ -1024,7 +1024,15 @@ The project also makes clear that both methods are numerically sensitive. Basis 
 
 These issues matter in practice. If regression-based American pricing methods are used carelessly, institutions can misprice early-exercise features through poor basis specification, unstable regression fits, weak benchmarking, or reliance on in-sample performance. The project does not claim to solve those governance problems. What it does show is that they arise naturally even in a controlled academic study.
 
-Several simplifications remain. The finite-difference solver is a one-dimensional benchmark implementation rather than a production PDE framework. The Asian-style extension has no direct PDE benchmark. The jump process is stylized. Neither pricing framework is presented as a production library. These limitations should be kept in mind when interpreting the results.
+Several simplifications remain. The GBM assumption imposes constant volatility, no
+dividends, lognormal returns, and a constant risk-free rate --- none of which hold in
+real equity markets where volatility clusters and smiles, dividends affect early exercise
+decisions, and returns exhibit fat tails and negative skew. Neither implementation
+incorporates implied volatility calibration or dividend adjustments. The finite-difference
+solver is a one-dimensional benchmark rather than a production PDE framework, the
+Asian-style extension has no direct PDE benchmark, the jump process is stylised, and
+neither framework is presented as a production library. These limitations should be kept
+in mind when interpreting the results.
 
 ## Scope and Claims
 This report does not claim market calibration, production-grade data handling, a production pricing library, or exact reproduction of every result in the original papers. Instead, it makes three narrower claims:

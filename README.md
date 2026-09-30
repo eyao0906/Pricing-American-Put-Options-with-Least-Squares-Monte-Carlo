@@ -1,4 +1,4 @@
-# ACTSC 971 American Option Pricing Project
+# American Option Pricing Project
 
 Under `src/LongstaffMethod`:
 
